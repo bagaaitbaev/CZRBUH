@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CEZAR | Финансы клуба</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Навигация">
+      <div class="brand">
+        <img class="brand-logo" src="assets/cezar-logo.png" alt="CEZAR">
+        <div>
+          <strong>CEZAR</strong>
+          <span>Финансы клуба</span>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="dashboard">Обзор</button>
+        <button class="nav-item" data-view="operations">Операции</button>
+        <button class="nav-item" data-view="accounts">Счета</button>
+        <button class="nav-item" data-view="reports">Отчеты</button>
+        <button class="nav-item" data-view="settings">Настройки</button>
+      </nav>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Локальный прототип</p>
+          <h1>Управленческий учет</h1>
+        </div>
+        <div class="topbar-actions">
+          <select id="periodFilter" aria-label="Период"></select>
+          <button class="ghost-button" id="exportCsvBtn" type="button">Экспорт CSV</button>
+          <button class="primary-button" data-open-form type="button">Новая операция</button>
+        </div>
+      </header>
+
+      <section class="view active" id="dashboard">
+        <div class="metrics-grid">
+          <article class="metric income">
+            <span>Доходы</span>
+            <strong id="incomeMetric">0 тг</strong>
+          </article>
+          <article class="metric expense">
+            <span>Расходы</span>
+            <strong id="expenseMetric">0 тг</strong>
+          </article>
+          <article class="metric profit">
+            <span>Итог месяца</span>
+            <strong id="profitMetric">0 тг</strong>
+          </article>
+          <article class="metric balance">
+            <span>Деньги на счетах</span>
+            <strong id="balanceMetric">0 тг</strong>
+          </article>
+        </div>
+
+        <section class="panel chart-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Динамика финансов</h2>
+              <span>Выручка и расходы</span>
+            </div>
+            <div class="segmented compact-segmented" aria-label="Период графика">
+              <button class="segment active" data-chart-range="month" type="button">Месяцы</button>
+              <button class="segment" data-chart-range="week" type="button">Недели</button>
+            </div>
+          </div>
+          <div class="finance-charts">
+            <article class="chart-card">
+              <div class="chart-title">
+                <strong>Выручка</strong>
+                <span id="incomeTrendLabel"></span>
+              </div>
+              <div class="line-chart income-chart" id="incomeChart"></div>
+            </article>
+            <article class="chart-card">
+              <div class="chart-title">
+                <strong>Расходы</strong>
+                <span id="expenseTrendLabel"></span>
+              </div>
+              <div class="line-chart expense-chart" id="expenseChart"></div>
+            </article>
+          </div>
+        </section>
+
+        <div class="split-layout">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Движение денег</h2>
+              <span id="selectedPeriodLabel"></span>
+            </div>
+            <div class="bars" id="categoryBars"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Последние операции</h2>
+              <button class="text-button" data-view-link="operations" type="button">Все</button>
+            </div>
+            <div class="compact-list" id="recentList"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="operations">
+        <div class="toolbar">
+          <div class="segmented" aria-label="Тип операции">
+            <button class="segment active" data-type-filter="all" type="button">Все</button>
+            <button class="segment" data-type-filter="income" type="button">Доходы</button>
+            <button class="segment" data-type-filter="expense" type="button">Расходы</button>
+          </div>
+          <input id="searchInput" type="search" placeholder="Поиск по описанию, категории, счету">
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Тип</th>
+                <th>Направление</th>
+                <th>Категория</th>
+                <th>Подкатегория</th>
+                <th>Счет</th>
+                <th>Сумма</th>
+                <th>Описание</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="operationsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="view" id="accounts">
+        <div class="accounts-grid" id="accountsGrid"></div>
+      </section>
+
+      <section class="view" id="reports">
+        <div class="report-tabs" aria-label="Финансовые отчеты">
+          <button class="report-tab active" data-report-tab="opu" type="button">ОПиУ</button>
+          <button class="report-tab" data-report-tab="dds" type="button">ДДС</button>
+        </div>
+
+        <div class="report-panel active" id="opuReportPanel">
+          <div class="report-summary">
+            <article class="metric income">
+              <span>Выручка</span>
+              <strong id="opuIncome">0 тг</strong>
+            </article>
+            <article class="metric expense">
+              <span>Расходы</span>
+              <strong id="opuExpense">0 тг</strong>
+            </article>
+            <article class="metric profit">
+              <span>Операционная прибыль</span>
+              <strong id="opuProfit">0 тг</strong>
+            </article>
+          </div>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>ОПиУ: доходы и расходы</h2>
+              <span id="opuPeriodLabel"></span>
+            </div>
+            <div class="table-wrap opu-table-wrap">
+              <table class="opu-table">
+                <thead>
+                  <tr>
+                    <th>Статья</th>
+                    <th>Игровые приставки</th>
+                    <th>%</th>
+                    <th>Бар</th>
+                    <th>%</th>
+                    <th>Кальян</th>
+                    <th>%</th>
+                    <th>Общие</th>
+                    <th>%</th>
+                    <th>Итого</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody id="opuTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="report-panel" id="ddsReportPanel">
+          <div class="dds-summary" id="ddsSummary"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>ДДС: движение денег</h2>
+              <span id="ddsPeriodLabel"></span>
+            </div>
+            <div class="dds-grid" id="ddsTable"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="settings">
+        <div class="settings-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Категории доходов</h2>
+            </div>
+            <div class="tag-list" id="incomeTags"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Категории расходов</h2>
+            </div>
+            <div class="tag-list" id="expenseTags"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Счета</h2>
+            </div>
+            <div class="tag-list" id="accountTags"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="operation-dialog" id="operationDialog">
+    <form method="dialog" class="operation-form" id="operationForm">
+      <div class="dialog-header">
+        <h2>Новая операция</h2>
+        <button class="icon-button" data-close-operation type="button" aria-label="Закрыть">×</button>
+      </div>
+
+      <div class="form-grid">
+        <label>Тип
+          <select name="type" id="typeInput">
+            <option value="income">Доход</option>
+            <option value="expense">Расход</option>
+          </select>
+        </label>
+        <label>Дата
+          <input name="date" type="date" required>
+        </label>
+        <label>Сумма, тг
+          <input name="amount" type="number" min="1" step="1" required>
+        </label>
+        <label>Счет
+          <select name="account" id="accountInput"></select>
+        </label>
+        <label>Направление
+          <select name="department" id="departmentInput"></select>
+        </label>
+        <label>Категория
+          <select name="category" id="categoryInput"></select>
+        </label>
+        <label>Подкатегория
+          <select name="subcategory" id="subcategoryInput"></select>
+        </label>
+        <label class="wide">Описание
+          <input name="description" type="text" placeholder="Например: оплата смены, закуп товара, аренда">
+        </label>
+      </div>
+
+      <div class="dialog-actions">
+        <button class="ghost-button" data-close-operation type="button">Отмена</button>
+        <button class="primary-button" value="default" type="submit">Добавить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
