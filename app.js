@@ -1,18 +1,18 @@
-const incomeCategories = {
+let incomeCategories = loadDirectory("cezar-finance-income-categories", {
   "Продажи": ["Услуги и товары", "Прочие"],
   "Финансовые": ["Возврат", "Прочие доходы"]
-};
+});
 
-const expenseCategories = {
+let expenseCategories = loadDirectory("cezar-finance-expense-categories", {
   "1. Переменные": ["Закуп товаров", "Зарплата"],
   "2. Постоянные": ["Зарплата", "Питание сотрудников", "Связь и интернет", "Программное обеспечение", "Профессиональные услуги", "Аренда помещения", "Комунальные услуги"],
   "3. Коммерческие": ["Реклама", "Зарплата"],
   "4. Финансовые": ["Комиссии", "Прочие расходы"],
   "5. Инвестиционные": ["Оборудование", "Ремонт"],
   "Дивиденды": ["Дивиденды"]
-};
+});
 
-const startingAccounts = [
+let startingAccounts = loadDirectory("cezar-finance-accounts", [
   { name: "Kaspi Pay", balance: 1645345 },
   { name: "Kaspi Gold", balance: 0 },
   { name: "Наличные А", balance: 12020 },
@@ -20,9 +20,9 @@ const startingAccounts = [
   { name: "Депозит", balance: 0 },
   { name: "Наличные Б", balance: 0 },
   { name: "Доп", balance: 0 }
-];
+]);
 
-const departments = ["Игровые приставки", "Бар", "Кальян", "Общие"];
+const departments = loadDirectory("cezar-finance-departments", ["Игровые приставки", "Бар", "Кальян", "Общие"]);
 const kaspiPayAccount = "Kaspi Pay";
 const kaspiAcquiringRate = 0.0095;
 const kaspiTaxRate = 0.02;
@@ -69,6 +69,23 @@ const searchInput = document.querySelector("#searchInput");
 function loadOperations() {
   const saved = localStorage.getItem("cezar-finance-operations");
   return normalizeOperations(saved ? JSON.parse(saved) : seedOperations);
+}
+
+function loadDirectory(key, fallback) {
+  const saved = localStorage.getItem(key);
+  if (!saved) return JSON.parse(JSON.stringify(fallback));
+  try {
+    return JSON.parse(saved);
+  } catch (error) {
+    return JSON.parse(JSON.stringify(fallback));
+  }
+}
+
+function saveDirectories() {
+  localStorage.setItem("cezar-finance-income-categories", JSON.stringify(incomeCategories));
+  localStorage.setItem("cezar-finance-expense-categories", JSON.stringify(expenseCategories));
+  localStorage.setItem("cezar-finance-accounts", JSON.stringify(startingAccounts));
+  localStorage.setItem("cezar-finance-departments", JSON.stringify(departments));
 }
 
 function normalizeOperations(items) {
@@ -136,6 +153,16 @@ function filteredOperations() {
 
 function sumBy(items, type) {
   return items.filter(item => item.type === type).reduce((total, item) => total + item.amount, 0);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, symbol => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#039;"
+  }[symbol]));
 }
 
 function kaspiPayIncome(items) {
@@ -497,9 +524,48 @@ function renderOpuRow(row) {
 }
 
 function renderTags() {
-  document.querySelector("#incomeTags").innerHTML = Object.keys(incomeCategories).map(name => `<span class="tag">${name}</span>`).join("");
-  document.querySelector("#expenseTags").innerHTML = Object.keys(expenseCategories).map(name => `<span class="tag">${name}</span>`).join("");
-  document.querySelector("#accountTags").innerHTML = startingAccounts.map(account => `<span class="tag">${account.name}</span>`).join("");
+  document.querySelector("#incomeTags").innerHTML = renderCategorySettings("income", incomeCategories);
+  document.querySelector("#expenseTags").innerHTML = renderCategorySettings("expense", expenseCategories);
+  document.querySelector("#accountTags").innerHTML = startingAccounts.map(account => renderSimpleSettingsItem("account", account.name)).join("");
+  document.querySelector("#departmentTags").innerHTML = departments.map(department => renderSimpleSettingsItem("department", department)).join("");
+}
+
+function renderSimpleSettingsItem(type, name) {
+  return `
+    <div class="settings-item">
+      <strong>${escapeHtml(name)}</strong>
+      <div class="settings-actions">
+        <button class="text-button" data-settings-action="rename-${type}" data-name="${escapeHtml(name)}" type="button">Переименовать</button>
+        <button class="danger-button compact-danger" data-settings-action="delete-${type}" data-name="${escapeHtml(name)}" type="button">Удалить</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderCategorySettings(kind, categories) {
+  return Object.entries(categories).map(([category, subcategories]) => `
+    <div class="settings-group">
+      <div class="settings-item">
+        <strong>${escapeHtml(category)}</strong>
+        <div class="settings-actions">
+          <button class="text-button" data-settings-action="add-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button">Подкатегория</button>
+          <button class="text-button" data-settings-action="rename-category" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button">Переименовать</button>
+          <button class="danger-button compact-danger" data-settings-action="delete-category" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button">Удалить</button>
+        </div>
+      </div>
+      <div class="subcategory-list">
+        ${subcategories.map(subcategory => `
+          <div class="settings-item subcategory-item">
+            <span>${escapeHtml(subcategory)}</span>
+            <div class="settings-actions">
+              <button class="text-button" data-settings-action="rename-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" data-name="${escapeHtml(subcategory)}" type="button">Переименовать</button>
+              <button class="danger-button compact-danger" data-settings-action="delete-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" data-name="${escapeHtml(subcategory)}" type="button">Удалить</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
 }
 
 function renderFormOptions() {
@@ -586,6 +652,207 @@ document.querySelectorAll("[data-report-tab]").forEach(button => {
     document.querySelector("#ddsReportPanel").classList.toggle("active", report === "dds");
   });
 });
+
+document.querySelector("#settings").addEventListener("click", event => {
+  const button = event.target.closest("[data-settings-action]");
+  if (!button) return;
+  handleSettingsAction(button.dataset);
+});
+
+function handleSettingsAction(data) {
+  const action = data.settingsAction;
+  if (action === "add-account") addAccount();
+  if (action === "rename-account") renameAccount(data.name);
+  if (action === "delete-account") deleteAccount(data.name);
+  if (action === "add-department") addDepartment();
+  if (action === "rename-department") renameDepartment(data.name);
+  if (action === "delete-department") deleteDepartment(data.name);
+  if (action === "add-category") addCategory(data.kind);
+  if (action === "rename-category") renameCategory(data.kind, data.category);
+  if (action === "delete-category") deleteCategory(data.kind, data.category);
+  if (action === "add-subcategory") addSubcategory(data.kind, data.category);
+  if (action === "rename-subcategory") renameSubcategory(data.kind, data.category, data.name);
+  if (action === "delete-subcategory") deleteSubcategory(data.kind, data.category, data.name);
+}
+
+function categoryMap(kind) {
+  return kind === "income" ? incomeCategories : expenseCategories;
+}
+
+function categoryTitle(kind) {
+  return kind === "income" ? "доходов" : "расходов";
+}
+
+function askName(title, current = "") {
+  const value = prompt(title, current);
+  return value ? value.trim() : "";
+}
+
+function saveSettingsAndRender() {
+  saveDirectories();
+  saveOperations();
+  render();
+}
+
+function isUsed(field, value, predicate = () => true) {
+  return state.operations.some(item => item[field] === value && predicate(item));
+}
+
+function addAccount() {
+  const name = askName("Название нового счета");
+  if (!name) return;
+  if (startingAccounts.some(account => account.name === name)) {
+    alert("Такой счет уже есть.");
+    return;
+  }
+  startingAccounts.push({ name, balance: 0 });
+  saveSettingsAndRender();
+}
+
+function renameAccount(oldName) {
+  const name = askName("Новое название счета", oldName);
+  if (!name || name === oldName) return;
+  if (startingAccounts.some(account => account.name === name)) {
+    alert("Такой счет уже есть.");
+    return;
+  }
+  const account = startingAccounts.find(item => item.name === oldName);
+  if (!account) return;
+  account.name = name;
+  state.operations.forEach(item => {
+    if (item.account === oldName) item.account = name;
+  });
+  saveSettingsAndRender();
+}
+
+function deleteAccount(name) {
+  if (isUsed("account", name)) {
+    alert("Счет уже используется в операциях. Сначала переименуйте его или удалите связанные операции.");
+    return;
+  }
+  if (!confirm(`Удалить счет "${name}"?`)) return;
+  startingAccounts = startingAccounts.filter(account => account.name !== name);
+  saveSettingsAndRender();
+}
+
+function addDepartment() {
+  const name = askName("Название нового направления");
+  if (!name) return;
+  if (departments.includes(name)) {
+    alert("Такое направление уже есть.");
+    return;
+  }
+  departments.push(name);
+  saveSettingsAndRender();
+}
+
+function renameDepartment(oldName) {
+  const name = askName("Новое название направления", oldName);
+  if (!name || name === oldName) return;
+  if (departments.includes(name)) {
+    alert("Такое направление уже есть.");
+    return;
+  }
+  const index = departments.indexOf(oldName);
+  if (index === -1) return;
+  departments[index] = name;
+  state.operations.forEach(item => {
+    if (item.department === oldName) item.department = name;
+  });
+  saveSettingsAndRender();
+}
+
+function deleteDepartment(name) {
+  if (isUsed("department", name)) {
+    alert("Направление уже используется в операциях. Сначала переименуйте его или удалите связанные операции.");
+    return;
+  }
+  if (!confirm(`Удалить направление "${name}"?`)) return;
+  departments.splice(departments.indexOf(name), 1);
+  saveSettingsAndRender();
+}
+
+function addCategory(kind) {
+  const categories = categoryMap(kind);
+  const name = askName(`Название новой категории ${categoryTitle(kind)}`);
+  if (!name) return;
+  if (categories[name]) {
+    alert("Такая категория уже есть.");
+    return;
+  }
+  categories[name] = [];
+  saveSettingsAndRender();
+}
+
+function renameCategory(kind, oldName) {
+  const categories = categoryMap(kind);
+  const name = askName("Новое название категории", oldName);
+  if (!name || name === oldName) return;
+  if (categories[name]) {
+    alert("Такая категория уже есть.");
+    return;
+  }
+  const next = {};
+  Object.entries(categories).forEach(([category, values]) => {
+    next[category === oldName ? name : category] = values;
+  });
+  if (kind === "income") incomeCategories = next;
+  else expenseCategories = next;
+  state.operations.forEach(item => {
+    if (item.type === kind && item.category === oldName) item.category = name;
+  });
+  saveSettingsAndRender();
+}
+
+function deleteCategory(kind, name) {
+  if (isUsed("category", name, item => item.type === kind)) {
+    alert("Категория уже используется в операциях. Сначала переименуйте ее или удалите связанные операции.");
+    return;
+  }
+  if (!confirm(`Удалить категорию "${name}"?`)) return;
+  delete categoryMap(kind)[name];
+  saveSettingsAndRender();
+}
+
+function addSubcategory(kind, category) {
+  const categories = categoryMap(kind);
+  const name = askName("Название новой подкатегории");
+  if (!name) return;
+  if (categories[category].includes(name)) {
+    alert("Такая подкатегория уже есть.");
+    return;
+  }
+  categories[category].push(name);
+  saveSettingsAndRender();
+}
+
+function renameSubcategory(kind, category, oldName) {
+  const categories = categoryMap(kind);
+  const name = askName("Новое название подкатегории", oldName);
+  if (!name || name === oldName) return;
+  if (categories[category].includes(name)) {
+    alert("Такая подкатегория уже есть.");
+    return;
+  }
+  const index = categories[category].indexOf(oldName);
+  if (index === -1) return;
+  categories[category][index] = name;
+  state.operations.forEach(item => {
+    if (item.type === kind && item.category === category && item.subcategory === oldName) item.subcategory = name;
+  });
+  saveSettingsAndRender();
+}
+
+function deleteSubcategory(kind, category, name) {
+  if (isUsed("subcategory", name, item => item.type === kind && item.category === category)) {
+    alert("Подкатегория уже используется в операциях. Сначала переименуйте ее или удалите связанные операции.");
+    return;
+  }
+  if (!confirm(`Удалить подкатегорию "${name}"?`)) return;
+  const values = categoryMap(kind)[category];
+  values.splice(values.indexOf(name), 1);
+  saveSettingsAndRender();
+}
 
 document.querySelector("#operationsTable").addEventListener("click", event => {
   const button = event.target.closest("[data-delete-operation]");

@@ -207,21 +207,43 @@
         <div class="settings-grid">
           <section class="panel">
             <div class="panel-header">
-              <h2>Категории доходов</h2>
+              <div>
+                <h2>Категории доходов</h2>
+                <span>Категории и подкатегории</span>
+              </div>
+              <button class="ghost-button compact-button" data-settings-action="add-category" data-kind="income" type="button">Добавить</button>
             </div>
             <div class="tag-list" id="incomeTags"></div>
           </section>
           <section class="panel">
             <div class="panel-header">
-              <h2>Категории расходов</h2>
+              <div>
+                <h2>Категории расходов</h2>
+                <span>Категории и подкатегории</span>
+              </div>
+              <button class="ghost-button compact-button" data-settings-action="add-category" data-kind="expense" type="button">Добавить</button>
             </div>
             <div class="tag-list" id="expenseTags"></div>
           </section>
           <section class="panel">
             <div class="panel-header">
-              <h2>Счета</h2>
+              <div>
+                <h2>Счета</h2>
+                <span>Счета для операций</span>
+              </div>
+              <button class="ghost-button compact-button" data-settings-action="add-account" type="button">Добавить</button>
             </div>
             <div class="tag-list" id="accountTags"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Направления</h2>
+                <span>Бар, клуб, кальян и другие</span>
+              </div>
+              <button class="ghost-button compact-button" data-settings-action="add-department" type="button">Добавить</button>
+            </div>
+            <div class="tag-list" id="departmentTags"></div>
           </section>
         </div>
       </section>

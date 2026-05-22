@@ -476,7 +476,7 @@ input:focus {
 }
 
 .settings-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .panel {
@@ -928,6 +928,63 @@ tbody tr:last-child td {
   color: var(--muted-strong);
   border: 1px solid var(--line);
   font-weight: 600;
+}
+
+.settings-grid .tag-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.settings-item strong,
+.settings-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.subcategory-list {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+}
+
+.subcategory-item {
+  min-height: 32px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+
+.compact-button,
+.compact-danger,
+.settings-actions .text-button {
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .operation-dialog {
