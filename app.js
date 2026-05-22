@@ -535,8 +535,8 @@ function renderSimpleSettingsItem(type, name) {
     <div class="settings-item">
       <strong>${escapeHtml(name)}</strong>
       <div class="settings-actions">
-        <button class="text-button" data-settings-action="rename-${type}" data-name="${escapeHtml(name)}" type="button">Переименовать</button>
-        <button class="danger-button compact-danger" data-settings-action="delete-${type}" data-name="${escapeHtml(name)}" type="button">Удалить</button>
+        <button class="settings-action-button" data-settings-action="rename-${type}" data-name="${escapeHtml(name)}" type="button" aria-label="Переименовать">Изм.</button>
+        <button class="settings-action-button danger" data-settings-action="delete-${type}" data-name="${escapeHtml(name)}" type="button" aria-label="Удалить">×</button>
       </div>
     </div>
   `;
@@ -548,9 +548,9 @@ function renderCategorySettings(kind, categories) {
       <div class="settings-item">
         <strong>${escapeHtml(category)}</strong>
         <div class="settings-actions">
-          <button class="text-button" data-settings-action="add-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button">Подкатегория</button>
-          <button class="text-button" data-settings-action="rename-category" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button">Переименовать</button>
-          <button class="danger-button compact-danger" data-settings-action="delete-category" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button">Удалить</button>
+          <button class="settings-action-button" data-settings-action="add-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button" aria-label="Добавить подкатегорию">+</button>
+          <button class="settings-action-button" data-settings-action="rename-category" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button" aria-label="Переименовать">Изм.</button>
+          <button class="settings-action-button danger" data-settings-action="delete-category" data-kind="${kind}" data-category="${escapeHtml(category)}" type="button" aria-label="Удалить">×</button>
         </div>
       </div>
       <div class="subcategory-list">
@@ -558,8 +558,8 @@ function renderCategorySettings(kind, categories) {
           <div class="settings-item subcategory-item">
             <span>${escapeHtml(subcategory)}</span>
             <div class="settings-actions">
-              <button class="text-button" data-settings-action="rename-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" data-name="${escapeHtml(subcategory)}" type="button">Переименовать</button>
-              <button class="danger-button compact-danger" data-settings-action="delete-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" data-name="${escapeHtml(subcategory)}" type="button">Удалить</button>
+              <button class="settings-action-button" data-settings-action="rename-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" data-name="${escapeHtml(subcategory)}" type="button" aria-label="Переименовать">Изм.</button>
+              <button class="settings-action-button danger" data-settings-action="delete-subcategory" data-kind="${kind}" data-category="${escapeHtml(category)}" data-name="${escapeHtml(subcategory)}" type="button" aria-label="Удалить">×</button>
             </div>
           </div>
         `).join("")}

@@ -932,24 +932,37 @@ tbody tr:last-child td {
 
 .settings-grid .tag-list {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .settings-group {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 2px;
+  padding: 4px 0 8px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #f8fafc;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-group:last-child {
+  border-bottom: 0;
 }
 
 .settings-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 38px;
+  gap: 10px;
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 2px 4px;
+  transition: background var(--ease);
+}
+
+.settings-item:hover,
+.settings-item:focus-within {
+  background: #f8fafc;
 }
 
 .settings-item strong,
@@ -958,33 +971,79 @@ tbody tr:last-child td {
   overflow-wrap: anywhere;
 }
 
+.settings-item strong {
+  font-size: 14px;
+}
+
+.settings-item span {
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
 .settings-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ease);
+}
+
+.settings-item:hover .settings-actions,
+.settings-item:focus-within .settings-actions,
+.settings-group:hover > .settings-item .settings-actions,
+.settings-group:focus-within > .settings-item .settings-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .subcategory-list {
   display: grid;
-  gap: 6px;
-  padding-left: 10px;
+  gap: 1px;
+  padding-left: 14px;
 }
 
 .subcategory-item {
-  min-height: 32px;
-  padding-left: 10px;
-  border-left: 2px solid var(--line);
+  min-height: 28px;
 }
 
-.compact-button,
-.compact-danger,
-.settings-actions .text-button {
-  min-height: 32px;
+.settings-add-button {
+  width: 34px;
+  min-height: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.settings-action-button {
+  min-width: 30px;
+  min-height: 26px;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0 10px;
-  font-size: 12px;
+  background: var(--paper);
+  color: var(--muted-strong);
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.settings-action-button:hover {
+  border-color: var(--line-strong);
+  background: var(--paper-soft);
+  color: var(--ink);
+}
+
+.settings-action-button.danger {
+  color: #b91c1c;
+}
+
+.settings-action-button.danger:hover {
+  border-color: #fecaca;
+  background: var(--red-soft);
 }
 
 .operation-dialog {
@@ -1169,6 +1228,11 @@ label select {
 
   .panel {
     padding: 16px;
+  }
+
+  .settings-actions {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .panel-header,
