@@ -572,14 +572,26 @@ document.querySelector("#operationsTable").addEventListener("click", event => {
   render();
 });
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, symbol => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#039;"
-  }[symbol]));
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.append(script);
+  });
+}
+
+async function loadPdfMaker() {
+  if (window.pdfMake) return;
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js");
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js");
 }
 
 searchInput.addEventListener("input", () => {
@@ -610,86 +622,71 @@ operationForm.addEventListener("submit", event => {
   render();
 });
 
-document.querySelector("#exportPdfBtn").addEventListener("click", () => {
+document.querySelector("#exportPdfBtn").addEventListener("click", async () => {
   const operations = filteredOperations();
   const income = sumBy(operations, "income");
   const expense = sumBy(operations, "expense");
   const periodLabel = state.period === "all" ? "Все периоды" : monthName(state.period);
   const typeLabel = state.typeFilter === "all" ? "Доходы и расходы" : state.typeFilter === "income" ? "Доходы" : "Расходы";
-  const rows = operations.map(item => `
-    <tr>
-      <td>${escapeHtml(dateFormatter.format(new Date(item.date)))}</td>
-      <td>${escapeHtml(item.type === "income" ? "Доход" : "Расход")}</td>
-      <td>${escapeHtml(item.department)}</td>
-      <td>${escapeHtml(item.category)}</td>
-      <td>${escapeHtml(item.subcategory)}</td>
-      <td>${escapeHtml(item.account)}</td>
-      <td class="amount">${escapeHtml(money(item.amount))}</td>
-      <td>${escapeHtml(item.description || "")}</td>
-    </tr>
-  `).join("");
 
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) {
-    alert("Браузер заблокировал окно для PDF. Разрешите всплывающие окна и повторите.");
+  try {
+    await loadPdfMaker();
+  } catch (error) {
+    alert("Не удалось загрузить модуль PDF. Проверьте интернет и повторите.");
     return;
   }
 
-  printWindow.document.write(`
-    <!doctype html>
-    <html lang="ru">
-    <head>
-      <meta charset="utf-8">
-      <title>CEZAR finance PDF</title>
-      <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; padding: 28px; color: #101828; font-family: Arial, sans-serif; }
-        h1 { margin: 0 0 8px; font-size: 24px; }
-        .meta { margin: 0 0 20px; color: #475467; font-size: 12px; }
-        .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
-        .card { border: 1px solid #d0d5dd; border-radius: 8px; padding: 12px; }
-        .card span { display: block; color: #667085; font-size: 11px; margin-bottom: 5px; }
-        .card strong { font-size: 16px; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        th, td { border: 1px solid #d0d5dd; padding: 7px 6px; text-align: left; vertical-align: top; }
-        th { background: #f2f4f7; font-size: 9px; text-transform: uppercase; }
-        .amount { text-align: right; white-space: nowrap; }
-        .empty { border: 1px solid #d0d5dd; border-radius: 8px; padding: 18px; color: #667085; }
-        @page { size: A4 landscape; margin: 12mm; }
-        @media print { body { padding: 0; } }
-      </style>
-    </head>
-    <body>
-      <h1>CEZAR - Финансовый отчет</h1>
-      <p class="meta">${escapeHtml(periodLabel)} · ${escapeHtml(typeLabel)} · ${escapeHtml(new Date().toLocaleDateString("ru-RU"))}</p>
-      <section class="summary">
-        <div class="card"><span>Доходы</span><strong>${escapeHtml(money(income))}</strong></div>
-        <div class="card"><span>Расходы</span><strong>${escapeHtml(money(expense))}</strong></div>
-        <div class="card"><span>Итог</span><strong>${escapeHtml(money(income - expense))}</strong></div>
-      </section>
-      ${operations.length ? `
-        <table>
-          <thead>
-            <tr>
-              <th>Дата</th>
-              <th>Тип</th>
-              <th>Направление</th>
-              <th>Категория</th>
-              <th>Подкатегория</th>
-              <th>Счет</th>
-              <th>Сумма</th>
-              <th>Описание</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      ` : `<div class="empty">Нет операций для выбранных фильтров</div>`}
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  const tableBody = [
+    ["Дата", "Тип", "Направление", "Категория", "Подкатегория", "Счет", "Сумма", "Описание"],
+    ...operations.map(item => [
+      dateFormatter.format(new Date(item.date)),
+      item.type === "income" ? "Доход" : "Расход",
+      item.department,
+      item.category,
+      item.subcategory,
+      item.account,
+      money(item.amount),
+      item.description || ""
+    ])
+  ];
+
+  const docDefinition = {
+    pageSize: "A4",
+    pageOrientation: "landscape",
+    pageMargins: [24, 24, 24, 24],
+    content: [
+      { text: "CEZAR - Финансовый отчет", style: "title" },
+      { text: `${periodLabel} · ${typeLabel} · ${new Date().toLocaleDateString("ru-RU")}`, style: "meta" },
+      {
+        columns: [
+          { text: `Доходы\n${money(income)}`, style: "summary" },
+          { text: `Расходы\n${money(expense)}`, style: "summary" },
+          { text: `Итог\n${money(income - expense)}`, style: "summary" }
+        ],
+        columnGap: 8,
+        margin: [0, 0, 0, 14]
+      },
+      operations.length ? {
+        table: {
+          headerRows: 1,
+          widths: [42, 42, 74, 76, 78, 56, 58, "*"],
+          body: tableBody
+        },
+        layout: "lightHorizontalLines"
+      } : { text: "Нет операций для выбранных фильтров", style: "empty" }
+    ],
+    styles: {
+      title: { fontSize: 18, bold: true, margin: [0, 0, 0, 6] },
+      meta: { fontSize: 9, color: "#667085", margin: [0, 0, 0, 14] },
+      summary: { fontSize: 11, bold: true, margin: [0, 0, 0, 0] },
+      empty: { fontSize: 12, color: "#667085" }
+    },
+    defaultStyle: {
+      fontSize: 8
+    }
+  };
+
+  window.pdfMake.createPdf(docDefinition).download("cezar-finance.pdf");
 });
 
 renderFormOptions();
