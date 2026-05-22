@@ -861,6 +861,31 @@ tbody tr:last-child td {
   font-size: 25px;
 }
 
+.account-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.account-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-details span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account-details strong {
+  margin: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .month-report {
   display: grid;
   gap: 8px;

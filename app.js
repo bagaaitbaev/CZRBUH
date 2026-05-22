@@ -23,6 +23,9 @@ const startingAccounts = [
 ];
 
 const departments = ["Игровые приставки", "Бар", "Кальян", "Общие"];
+const kaspiPayAccount = "Kaspi Pay";
+const kaspiAcquiringRate = 0.0095;
+const kaspiTaxRate = 0.02;
 
 const seedOperations = [
   { id: 1, date: "2026-05-01", type: "income", department: "Игровые приставки", category: "Продажи", subcategory: "Услуги и товары", account: "Kaspi Pay", amount: 1211225, description: "Выручка клуба" },
@@ -135,13 +138,26 @@ function sumBy(items, type) {
   return items.filter(item => item.type === type).reduce((total, item) => total + item.amount, 0);
 }
 
+function kaspiPayIncome(items) {
+  return items.filter(item => item.type === "income" && item.account === kaspiPayAccount).reduce((total, item) => total + item.amount, 0);
+}
+
+function kaspiCharges(items) {
+  const income = kaspiPayIncome(items);
+  return {
+    acquiring: Math.round(income * kaspiAcquiringRate),
+    tax: Math.round(income * kaspiTaxRate)
+  };
+}
+
 function accountBalances() {
   return startingAccounts.map(account => {
     const delta = state.operations.reduce((total, item) => {
       if (item.account !== account.name) return total;
       return total + (item.type === "income" ? item.amount : -item.amount);
     }, 0);
-    return { ...account, current: account.balance + delta };
+    const charges = account.name === kaspiPayAccount ? kaspiCharges(state.operations) : { acquiring: 0, tax: 0 };
+    return { ...account, current: account.balance + delta - charges.acquiring, charges };
   });
 }
 
@@ -318,10 +334,24 @@ function renderOperationsTable(items) {
 }
 
 function renderAccounts() {
+  const periodItems = operationsForPeriod(state.period);
+  const periodCharges = kaspiCharges(periodItems);
   document.querySelector("#accountsGrid").innerHTML = accountBalances().map(account => `
     <article class="account-card">
       <span>${account.name}</span>
       <strong>${money(account.current)}</strong>
+      ${account.name === kaspiPayAccount ? `
+        <div class="account-details">
+          <div>
+            <span>Эквайринг за период</span>
+            <strong>${money(periodCharges.acquiring)}</strong>
+          </div>
+          <div>
+            <span>Налог к оплате за период</span>
+            <strong>${money(periodCharges.tax)}</strong>
+          </div>
+        </div>
+      ` : ""}
     </article>
   `).join("");
 }
