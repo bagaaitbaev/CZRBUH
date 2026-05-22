@@ -49,6 +49,7 @@ const initialOperations = loadOperations();
 const state = {
   operations: initialOperations,
   period: latestPeriod(initialOperations),
+  opuPeriod: latestPeriod(initialOperations),
   typeFilter: "all",
   search: "",
   chartRange: "month"
@@ -57,6 +58,7 @@ const state = {
 const views = document.querySelectorAll(".view");
 const navButtons = document.querySelectorAll(".nav-item");
 const periodFilter = document.querySelector("#periodFilter");
+const opuPeriodFilter = document.querySelector("#opuPeriodFilter");
 const operationDialog = document.querySelector("#operationDialog");
 const operationForm = document.querySelector("#operationForm");
 const typeInput = document.querySelector("#typeInput");
@@ -230,6 +232,17 @@ function renderPeriodFilter() {
   periodFilter.value = state.period;
 }
 
+function renderOpuPeriodFilter() {
+  if (!opuPeriodFilter) return;
+  const periods = getPeriods();
+  if (!periods.includes(state.opuPeriod)) state.opuPeriod = periods[1] || "all";
+  opuPeriodFilter.innerHTML = periods.map(period => {
+    const label = period === "all" ? "Все периоды" : monthName(period);
+    return `<option value="${period}">${label}</option>`;
+  }).join("");
+  opuPeriodFilter.value = state.opuPeriod;
+}
+
 function renderMetrics(items) {
   const income = sumBy(items, "income");
   const expense = sumBy(items, "expense");
@@ -384,18 +397,22 @@ function renderAccounts() {
 }
 
 function renderReports() {
-  const periodItems = operationsForPeriod(state.period);
+  const periodItems = operationsForPeriod(state.opuPeriod);
+  const ddsPeriodItems = operationsForPeriod(state.period);
   const income = sumBy(periodItems, "income");
   const expense = sumBy(periodItems, "expense");
   const profit = income - expense;
-  const periodLabel = state.period === "all" ? "Все периоды" : monthName(state.period);
+  const periodLabel = state.opuPeriod === "all" ? "Все периоды" : monthName(state.opuPeriod);
+  const ddsPeriodLabel = state.period === "all" ? "Все периоды" : monthName(state.period);
 
   document.querySelector("#opuIncome").textContent = money(income);
   document.querySelector("#opuExpense").textContent = money(expense);
   document.querySelector("#opuProfit").textContent = money(profit);
   document.querySelector("#opuPeriodLabel").textContent = periodLabel;
-  document.querySelector("#ddsPeriodLabel").textContent = periodLabel;
+  document.querySelector("#ddsPeriodLabel").textContent = ddsPeriodLabel;
 
+  const allIncome = sumDepartments(periodItems, item => item.type === "income");
+  const allExpense = sumDepartments(periodItems, item => item.type === "expense");
   const revenue = sumDepartments(periodItems, item => item.type === "income" && item.category === "Продажи");
   const services = sumDepartments(periodItems, item => item.type === "income" && item.subcategory === "Услуги и товары");
   const otherIncome = sumDepartments(periodItems, item => item.type === "income" && item.subcategory !== "Услуги и товары");
@@ -405,6 +422,7 @@ function renderReports() {
   const fixed = sumDepartments(periodItems, item => item.type === "expense" && item.category === "2. Постоянные");
   const commercial = sumDepartments(periodItems, item => item.type === "expense" && item.category === "3. Коммерческие");
   const operatingProfit = subtractDepartments(subtractDepartments(grossProfit, fixed), commercial);
+  const netProfit = subtractDepartments(allIncome, allExpense);
 
   const subcategoryRows = [
     "Зарплата",
@@ -435,7 +453,10 @@ function renderReports() {
     { title: "Зарплата", totals: sumDepartments(periodItems, item => item.type === "expense" && item.category === "3. Коммерческие" && item.subcategory === "Зарплата"), base: revenue },
     { title: "Реклама", totals: sumDepartments(periodItems, item => item.type === "expense" && item.category === "3. Коммерческие" && item.subcategory === "Реклама"), base: revenue },
     { title: "Операционная прибыль", totals: operatingProfit, base: revenue, highlight: true },
-    { title: "Рентабельность, %", totals: operatingProfit, base: revenue, percentOnly: true }
+    { title: "Рентабельность, %", totals: operatingProfit, base: revenue, percentOnly: true },
+    { title: "Всего расходов", totals: allExpense, base: allIncome, section: true },
+    { title: "Чистая прибыль", totals: netProfit, base: allIncome, highlight: true, net: true },
+    { title: "Чистая рентабельность, %", totals: netProfit, base: allIncome, percentOnly: true }
   ];
 
   document.querySelector("#opuTable").innerHTML = opuRows.map(row => renderOpuRow(row)).join("");
@@ -445,7 +466,7 @@ function renderReports() {
       if (item.account !== account.name || monthKey(item.date) >= state.period) return total;
       return total + (item.type === "income" ? item.amount : -item.amount);
     }, account.balance);
-    const accountItems = periodItems.filter(item => item.account === account.name);
+    const accountItems = ddsPeriodItems.filter(item => item.account === account.name);
     const inflow = sumBy(accountItems, "income");
     const outflow = sumBy(accountItems, "expense");
     const after = before + inflow - outflow;
@@ -506,7 +527,7 @@ function renderReports() {
 function renderOpuRow(row) {
   const total = totalDepartments(row.totals);
   const totalBase = totalDepartments(row.base || emptyDepartmentTotals());
-  const rowClass = row.section ? "opu-section" : row.highlight ? "opu-highlight" : row.percentOnly ? "opu-percent-row" : "";
+  const rowClass = row.net ? "opu-net-profit" : row.section ? "opu-section" : row.highlight ? "opu-highlight" : row.percentOnly ? "opu-percent-row" : "";
   const cells = departments.map(department => {
     const amount = row.totals[department] || 0;
     const base = row.base ? row.base[department] || 0 : 0;
@@ -527,7 +548,17 @@ function renderTags() {
   document.querySelector("#incomeTags").innerHTML = renderCategorySettings("income", incomeCategories);
   document.querySelector("#expenseTags").innerHTML = renderCategorySettings("expense", expenseCategories);
   document.querySelector("#accountTags").innerHTML = startingAccounts.map(account => renderSimpleSettingsItem("account", account.name)).join("");
+  document.querySelector("#openingBalances").innerHTML = renderOpeningBalances();
   document.querySelector("#departmentTags").innerHTML = departments.map(department => renderSimpleSettingsItem("department", department)).join("");
+}
+
+function renderOpeningBalances() {
+  return startingAccounts.map(account => `
+    <label class="balance-row">
+      <span>${escapeHtml(account.name)}</span>
+      <input data-opening-balance="${escapeHtml(account.name)}" type="number" step="1" value="${Number(account.balance) || 0}">
+    </label>
+  `).join("");
 }
 
 function renderSimpleSettingsItem(type, name) {
@@ -584,6 +615,7 @@ function renderSubcategories() {
 
 function render() {
   renderPeriodFilter();
+  renderOpuPeriodFilter();
   const items = filteredOperations();
   renderMetrics(items);
   renderCharts();
@@ -628,6 +660,11 @@ periodFilter.addEventListener("change", () => {
   render();
 });
 
+opuPeriodFilter?.addEventListener("change", () => {
+  state.opuPeriod = opuPeriodFilter.value;
+  renderReports();
+});
+
 document.querySelectorAll("[data-type-filter]").forEach(button => {
   button.addEventListener("click", () => {
     state.typeFilter = button.dataset.typeFilter;
@@ -658,6 +695,22 @@ document.querySelector("#settings").addEventListener("click", event => {
   if (!button) return;
   handleSettingsAction(button.dataset);
 });
+
+document.querySelector("#settings").addEventListener("change", event => {
+  const input = event.target.closest("[data-opening-balance]");
+  if (!input) return;
+  updateOpeningBalance(input.dataset.openingBalance, input.value);
+});
+
+function updateOpeningBalance(name, value) {
+  const account = startingAccounts.find(item => item.name === name);
+  if (!account) return;
+  account.balance = Number(value) || 0;
+  saveDirectories();
+  renderMetrics(filteredOperations());
+  renderAccounts();
+  renderReports();
+}
 
 function handleSettingsAction(data) {
   const action = data.settingsAction;

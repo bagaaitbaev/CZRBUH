@@ -148,6 +148,11 @@
         </div>
 
         <div class="report-panel active" id="opuReportPanel">
+          <div class="report-controls">
+            <label>Период ОПиУ
+              <select id="opuPeriodFilter" aria-label="Период ОПиУ"></select>
+            </label>
+          </div>
           <div class="report-summary">
             <article class="metric income">
               <span>Выручка</span>
@@ -158,7 +163,7 @@
               <strong id="opuExpense">0 тг</strong>
             </article>
             <article class="metric profit">
-              <span>Операционная прибыль</span>
+              <span>Чистая прибыль</span>
               <strong id="opuProfit">0 тг</strong>
             </article>
           </div>
@@ -234,6 +239,15 @@
               <button class="icon-button settings-add-button" data-settings-action="add-account" type="button" aria-label="Добавить счет">+</button>
             </div>
             <div class="tag-list" id="accountTags"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Начальные остатки</h2>
+                <span>Сальдо на начало ведения отчета</span>
+              </div>
+            </div>
+            <div class="balance-settings" id="openingBalances"></div>
           </section>
           <section class="panel">
             <div class="panel-header">

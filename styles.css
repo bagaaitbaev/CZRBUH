@@ -616,6 +616,16 @@ input:focus {
   margin-bottom: 18px;
 }
 
+.report-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.report-controls label {
+  width: min(260px, 100%);
+}
+
 .report-tab {
   border-radius: 11px;
   padding: 0 18px;
@@ -699,6 +709,14 @@ table {
   background: #fef3c7;
   font-weight: 700;
   color: #713f12;
+}
+
+.opu-net-profit td,
+.opu-net-profit td:first-child {
+  background: #dcfce7;
+  color: #14532d;
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .opu-percent-only {
@@ -933,6 +951,34 @@ tbody tr:last-child td {
 .settings-grid .tag-list {
   display: grid;
   gap: 6px;
+}
+
+.balance-settings {
+  display: grid;
+  gap: 10px;
+}
+
+.balance-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(140px, 180px);
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.balance-row span {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.balance-row input {
+  min-height: 38px;
+  text-align: right;
 }
 
 .settings-group {
@@ -1211,6 +1257,22 @@ label select {
 
   .report-tabs {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .report-controls {
+    justify-content: stretch;
+  }
+
+  .report-controls label {
+    width: 100%;
+  }
+
+  .balance-row {
+    grid-template-columns: 1fr;
+  }
+
+  .balance-row input {
+    text-align: left;
   }
 
   .metrics-grid,
