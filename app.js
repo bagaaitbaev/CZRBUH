@@ -869,28 +869,6 @@ document.querySelector("#operationsTable").addEventListener("click", event => {
   render();
 });
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      resolve();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.append(script);
-  });
-}
-
-async function loadPdfMaker() {
-  if (window.pdfMake) return;
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js");
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js");
-}
-
 searchInput.addEventListener("input", () => {
   state.search = searchInput.value.trim();
   render();
@@ -919,86 +897,74 @@ operationForm.addEventListener("submit", event => {
   render();
 });
 
-document.querySelector("#exportPdfBtn").addEventListener("click", async () => {
-  const previewWindow = window.open("about:blank", "_blank");
+function escapeExcel(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function excelRow(cells, heading = false) {
+  const tag = heading ? "th" : "td";
+  return `<tr>${cells.map(cell => `<${tag}>${escapeExcel(cell)}</${tag}>`).join("")}</tr>`;
+}
+
+document.querySelector("#exportExcelBtn").addEventListener("click", () => {
   const operations = filteredOperations();
   const income = sumBy(operations, "income");
   const expense = sumBy(operations, "expense");
   const periodLabel = state.period === "all" ? "Все периоды" : monthName(state.period);
   const typeLabel = state.typeFilter === "all" ? "Доходы и расходы" : state.typeFilter === "income" ? "Доходы" : "Расходы";
-
-  try {
-    await loadPdfMaker();
-  } catch (error) {
-    if (previewWindow) previewWindow.close();
-    alert("Не удалось загрузить модуль PDF. Проверьте интернет и повторите.");
-    return;
-  }
-
-  const tableBody = [
-    ["Дата", "Тип", "Направление", "Категория", "Подкатегория", "Счет", "Сумма", "Описание"],
-    ...operations.map(item => [
+  const rows = [
+    excelRow(["Дата", "Тип", "Направление", "Категория", "Подкатегория", "Счет", "Сумма", "Описание"], true),
+    ...operations.map(item => excelRow([
       dateFormatter.format(new Date(item.date)),
       item.type === "income" ? "Доход" : "Расход",
       item.department,
       item.category,
       item.subcategory,
       item.account,
-      money(item.amount),
+      item.amount,
       item.description || ""
-    ])
-  ];
-
-  const docDefinition = {
-    pageSize: "A4",
-    pageOrientation: "landscape",
-    pageMargins: [24, 24, 24, 24],
-    content: [
-      { text: "CEZAR - Финансовый отчет", style: "title" },
-      { text: `${periodLabel} · ${typeLabel} · ${new Date().toLocaleDateString("ru-RU")}`, style: "meta" },
-      {
-        columns: [
-          { text: `Доходы\n${money(income)}`, style: "summary" },
-          { text: `Расходы\n${money(expense)}`, style: "summary" },
-          { text: `Итог\n${money(income - expense)}`, style: "summary" }
-        ],
-        columnGap: 8,
-        margin: [0, 0, 0, 14]
-      },
-      operations.length ? {
-        table: {
-          headerRows: 1,
-          widths: [42, 42, 74, 76, 78, 56, 58, "*"],
-          body: tableBody
-        },
-        layout: "lightHorizontalLines"
-      } : { text: "Нет операций для выбранных фильтров", style: "empty" }
-    ],
-    styles: {
-      title: { fontSize: 18, bold: true, margin: [0, 0, 0, 6] },
-      meta: { fontSize: 9, color: "#667085", margin: [0, 0, 0, 14] },
-      summary: { fontSize: 11, bold: true, margin: [0, 0, 0, 0] },
-      empty: { fontSize: 12, color: "#667085" }
-    },
-    defaultStyle: {
-      fontSize: 8
-    }
-  };
-
-  window.pdfMake.createPdf(docDefinition).getBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    if (previewWindow) previewWindow.location.href = url;
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "cezar-finance.pdf";
-    link.click();
-
-    if (!previewWindow) {
-      alert("PDF скачан. Браузер заблокировал открытие новой вкладки.");
-    }
-
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  });
+    ]))
+  ].join("");
+  const emptyRow = `<tr><td colspan="8">Нет операций для выбранных фильтров</td></tr>`;
+  const html = `
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; }
+          h1 { font-size: 20px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #cbd5e1; padding: 8px; }
+          th { background: #0f172a; color: #ffffff; font-weight: 700; }
+          .summary td { background: #f8fafc; font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <h1>CEZAR - Финансовый отчет</h1>
+        <p>${escapeExcel(periodLabel)} · ${escapeExcel(typeLabel)} · ${new Date().toLocaleDateString("ru-RU")}</p>
+        <table>
+          <tr class="summary">
+            <td>Доходы</td><td>${escapeExcel(money(income))}</td>
+            <td>Расходы</td><td>${escapeExcel(money(expense))}</td>
+            <td>Итог</td><td colspan="3">${escapeExcel(money(income - expense))}</td>
+          </tr>
+        </table>
+        <br>
+        <table>${operations.length ? rows : emptyRow}</table>
+      </body>
+    </html>
+  `;
+  const blob = new Blob([`\uFEFF${html}`], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "cezar-finance.xls";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 });
 
 renderFormOptions();
