@@ -623,6 +623,7 @@ operationForm.addEventListener("submit", event => {
 });
 
 document.querySelector("#exportPdfBtn").addEventListener("click", async () => {
+  const previewWindow = window.open("about:blank", "_blank");
   const operations = filteredOperations();
   const income = sumBy(operations, "income");
   const expense = sumBy(operations, "expense");
@@ -632,6 +633,7 @@ document.querySelector("#exportPdfBtn").addEventListener("click", async () => {
   try {
     await loadPdfMaker();
   } catch (error) {
+    if (previewWindow) previewWindow.close();
     alert("Не удалось загрузить модуль PDF. Проверьте интернет и повторите.");
     return;
   }
@@ -686,7 +688,20 @@ document.querySelector("#exportPdfBtn").addEventListener("click", async () => {
     }
   };
 
-  window.pdfMake.createPdf(docDefinition).download("cezar-finance.pdf");
+  window.pdfMake.createPdf(docDefinition).getBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    if (previewWindow) previewWindow.location.href = url;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "cezar-finance.pdf";
+    link.click();
+
+    if (!previewWindow) {
+      alert("PDF скачан. Браузер заблокировал открытие новой вкладки.");
+    }
+
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  });
 });
 
 renderFormOptions();
