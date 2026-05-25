@@ -179,6 +179,23 @@ function kaspiCharges(items) {
   };
 }
 
+function accountBalanceBefore(account, period) {
+  if (period === "all") return account.balance;
+  const previousItems = state.operations.filter(item => monthKey(item.date) < period);
+  const delta = previousItems.reduce((total, item) => {
+    if (item.account !== account.name) return total;
+    return total + (item.type === "income" ? item.amount : -item.amount);
+  }, 0);
+  const charges = account.name === kaspiPayAccount ? kaspiCharges(previousItems) : { acquiring: 0 };
+  return account.balance + delta - charges.acquiring;
+}
+
+function ddsActivity(item) {
+  if (item.category === "5. Инвестиционные") return "investing";
+  if (item.category === "Дивиденды") return "financing";
+  return "operating";
+}
+
 function accountBalances() {
   return startingAccounts.map(account => {
     const delta = state.operations.reduce((total, item) => {
@@ -218,9 +235,57 @@ function subtractDepartments(left, right) {
   return result;
 }
 
+function addDepartments(...groups) {
+  const result = emptyDepartmentTotals();
+  groups.forEach(group => {
+    departments.forEach(department => {
+      result[department] += group[department] || 0;
+    });
+  });
+  return result;
+}
+
+function distributeAmount(amount, basis) {
+  const result = emptyDepartmentTotals();
+  const total = totalDepartments(basis);
+  if (!amount || !total) return result;
+
+  let distributed = 0;
+  departments.forEach((department, index) => {
+    const value = index === departments.length - 1
+      ? amount - distributed
+      : Math.round(amount * ((basis[department] || 0) / total));
+    result[department] = value;
+    distributed += value;
+  });
+  return result;
+}
+
 function opuPercent(value, base) {
   if (!base) return "0%";
   return `${Math.round(value / base * 100)}%`;
+}
+
+function financialSummary(items) {
+  const income = sumBy(items, "income");
+  const allIncome = sumDepartments(items, item => item.type === "income");
+  const revenue = sumDepartments(items, item => item.type === "income" && item.category === "Продажи");
+  const otherIncome = sumDepartments(items, item => item.type === "income" && item.category !== "Продажи");
+  const cost = sumDepartments(items, item => item.type === "expense" && item.category === "1. Переменные");
+  const fixed = sumDepartments(items, item => item.type === "expense" && item.category === "2. Постоянные");
+  const commercial = sumDepartments(items, item => item.type === "expense" && item.category === "3. Коммерческие");
+  const financeExpense = sumDepartments(items, item => item.type === "expense" && item.category === "4. Финансовые");
+  const charges = kaspiCharges(items);
+  const kaspiIncomeByDepartment = sumDepartments(items, item => item.type === "income" && item.account === kaspiPayAccount);
+  const acquiring = distributeAmount(charges.acquiring, kaspiIncomeByDepartment);
+  const tax = distributeAmount(charges.tax, kaspiIncomeByDepartment);
+  const grossProfit = subtractDepartments(revenue, cost);
+  const operatingProfit = subtractDepartments(grossProfit, addDepartments(fixed, commercial, acquiring));
+  const profitBeforeTax = subtractDepartments(addDepartments(operatingProfit, otherIncome), financeExpense);
+  const netProfit = subtractDepartments(profitBeforeTax, tax);
+  const expense = totalDepartments(addDepartments(cost, fixed, commercial, acquiring, financeExpense, tax));
+
+  return { income, expense, profit: totalDepartments(netProfit), netProfit, allIncome };
 }
 
 function renderPeriodFilter() {
@@ -244,12 +309,11 @@ function renderOpuPeriodFilter() {
 }
 
 function renderMetrics(items) {
-  const income = sumBy(items, "income");
-  const expense = sumBy(items, "expense");
+  const summary = financialSummary(items);
   const balance = accountBalances().reduce((total, account) => total + account.current, 0);
-  document.querySelector("#incomeMetric").textContent = money(income);
-  document.querySelector("#expenseMetric").textContent = money(expense);
-  document.querySelector("#profitMetric").textContent = money(income - expense);
+  document.querySelector("#incomeMetric").textContent = money(summary.income);
+  document.querySelector("#expenseMetric").textContent = money(summary.expense);
+  document.querySelector("#profitMetric").textContent = money(summary.profit);
   document.querySelector("#balanceMetric").textContent = money(balance);
   document.querySelector("#selectedPeriodLabel").textContent = state.period === "all" ? "Все периоды" : monthName(state.period);
 }
@@ -400,29 +464,35 @@ function renderReports() {
   const periodItems = operationsForPeriod(state.opuPeriod);
   const ddsPeriodItems = operationsForPeriod(state.period);
   const income = sumBy(periodItems, "income");
-  const expense = sumBy(periodItems, "expense");
-  const profit = income - expense;
   const periodLabel = state.opuPeriod === "all" ? "Все периоды" : monthName(state.opuPeriod);
   const ddsPeriodLabel = state.period === "all" ? "Все периоды" : monthName(state.period);
 
-  document.querySelector("#opuIncome").textContent = money(income);
-  document.querySelector("#opuExpense").textContent = money(expense);
-  document.querySelector("#opuProfit").textContent = money(profit);
-  document.querySelector("#opuPeriodLabel").textContent = periodLabel;
-  document.querySelector("#ddsPeriodLabel").textContent = ddsPeriodLabel;
-
   const allIncome = sumDepartments(periodItems, item => item.type === "income");
-  const allExpense = sumDepartments(periodItems, item => item.type === "expense");
   const revenue = sumDepartments(periodItems, item => item.type === "income" && item.category === "Продажи");
   const services = sumDepartments(periodItems, item => item.type === "income" && item.subcategory === "Услуги и товары");
-  const otherIncome = sumDepartments(periodItems, item => item.type === "income" && item.subcategory !== "Услуги и товары");
+  const otherRevenue = sumDepartments(periodItems, item => item.type === "income" && item.category === "Продажи" && item.subcategory !== "Услуги и товары");
+  const otherIncome = sumDepartments(periodItems, item => item.type === "income" && item.category !== "Продажи");
   const cost = sumDepartments(periodItems, item => item.type === "expense" && item.category === "1. Переменные");
   const goodsCost = sumDepartments(periodItems, item => item.type === "expense" && item.subcategory === "Закуп товаров");
   const grossProfit = subtractDepartments(revenue, cost);
   const fixed = sumDepartments(periodItems, item => item.type === "expense" && item.category === "2. Постоянные");
   const commercial = sumDepartments(periodItems, item => item.type === "expense" && item.category === "3. Коммерческие");
-  const operatingProfit = subtractDepartments(subtractDepartments(grossProfit, fixed), commercial);
-  const netProfit = subtractDepartments(allIncome, allExpense);
+  const kaspiPeriodCharges = kaspiCharges(periodItems);
+  const kaspiIncomeByDepartment = sumDepartments(periodItems, item => item.type === "income" && item.account === kaspiPayAccount);
+  const acquiring = distributeAmount(kaspiPeriodCharges.acquiring, kaspiIncomeByDepartment);
+  const tax = distributeAmount(kaspiPeriodCharges.tax, kaspiIncomeByDepartment);
+  const operatingExpenses = addDepartments(fixed, commercial, acquiring);
+  const operatingProfit = subtractDepartments(grossProfit, operatingExpenses);
+  const financeExpense = sumDepartments(periodItems, item => item.type === "expense" && item.category === "4. Финансовые");
+  const profitBeforeTax = subtractDepartments(addDepartments(operatingProfit, otherIncome), financeExpense);
+  const netProfit = subtractDepartments(profitBeforeTax, tax);
+  const opuExpense = totalDepartments(addDepartments(cost, operatingExpenses, financeExpense, tax));
+
+  document.querySelector("#opuIncome").textContent = money(income);
+  document.querySelector("#opuExpense").textContent = money(opuExpense);
+  document.querySelector("#opuProfit").textContent = money(totalDepartments(netProfit));
+  document.querySelector("#opuPeriodLabel").textContent = periodLabel;
+  document.querySelector("#ddsPeriodLabel").textContent = ddsPeriodLabel;
 
   const subcategoryRows = [
     "Зарплата",
@@ -442,7 +512,7 @@ function renderReports() {
   const opuRows = [
     { title: "Выручка", totals: revenue, base: revenue, section: true },
     { title: "Услуги и товары", totals: services, base: revenue },
-    { title: "Прочие", totals: otherIncome, base: revenue },
+    { title: "Прочие продажи", totals: otherRevenue, base: revenue },
     { title: "Себестоимость", totals: cost, base: revenue, section: true },
     { title: "Закуп товаров", totals: goodsCost, base: revenue },
     { title: "Валовая прибыль", totals: grossProfit, base: revenue, highlight: true },
@@ -452,27 +522,45 @@ function renderReports() {
     { title: "3. Коммерческие", totals: commercial, base: revenue, section: true },
     { title: "Зарплата", totals: sumDepartments(periodItems, item => item.type === "expense" && item.category === "3. Коммерческие" && item.subcategory === "Зарплата"), base: revenue },
     { title: "Реклама", totals: sumDepartments(periodItems, item => item.type === "expense" && item.category === "3. Коммерческие" && item.subcategory === "Реклама"), base: revenue },
+    { title: "Эквайринг Kaspi", totals: acquiring, base: revenue },
     { title: "Операционная прибыль", totals: operatingProfit, base: revenue, highlight: true },
     { title: "Рентабельность, %", totals: operatingProfit, base: revenue, percentOnly: true },
-    { title: "Всего расходов", totals: allExpense, base: allIncome, section: true },
-    { title: "Чистая прибыль", totals: netProfit, base: allIncome, highlight: true, net: true },
-    { title: "Чистая рентабельность, %", totals: netProfit, base: allIncome, percentOnly: true }
+    { title: "Прочие доходы", totals: otherIncome, base: revenue, section: true },
+    { title: "Финансовые расходы", totals: financeExpense, base: revenue, section: true },
+    { title: "Прибыль до налога", totals: profitBeforeTax, base: allIncome, highlight: true },
+    { title: "Налог", totals: tax, base: revenue, section: true },
+    { title: "Чистая прибыль", totals: netProfit, base: revenue, highlight: true, net: true },
+    { title: "Чистая рентабельность, %", totals: netProfit, base: revenue, percentOnly: true }
   ];
 
   document.querySelector("#opuTable").innerHTML = opuRows.map(row => renderOpuRow(row)).join("");
 
+  const ddsCharges = kaspiCharges(ddsPeriodItems);
+  const ddsItems = [
+    ...ddsPeriodItems,
+    ...(ddsCharges.acquiring ? [{
+      type: "expense",
+      account: kaspiPayAccount,
+      category: "4. Финансовые",
+      subcategory: "Комиссии",
+      amount: ddsCharges.acquiring
+    }] : [])
+  ];
   const ddsRows = startingAccounts.map(account => {
-    const before = state.period === "all" ? account.balance : state.operations.reduce((total, item) => {
-      if (item.account !== account.name || monthKey(item.date) >= state.period) return total;
-      return total + (item.type === "income" ? item.amount : -item.amount);
-    }, account.balance);
-    const accountItems = ddsPeriodItems.filter(item => item.account === account.name);
+    const before = accountBalanceBefore(account, state.period);
+    const accountItems = ddsItems.filter(item => item.account === account.name);
     const inflow = sumBy(accountItems, "income");
     const outflow = sumBy(accountItems, "expense");
     const after = before + inflow - outflow;
 
     return { name: account.name, before, inflow, outflow, after };
   });
+
+  const ddsActivities = ddsItems.reduce((totals, item) => {
+    const activity = ddsActivity(item);
+    totals[activity] += item.type === "income" ? item.amount : -item.amount;
+    return totals;
+  }, { operating: 0, investing: 0, financing: 0 });
 
   const ddsTotals = ddsRows.reduce((totals, row) => ({
     before: totals.before + row.before,
@@ -497,6 +585,18 @@ function renderReports() {
     <article class="dds-total-card">
       <span>На конец</span>
       <strong>${money(ddsTotals.after)}</strong>
+    </article>
+    <article class="dds-total-card">
+      <span>Операционная ДДС</span>
+      <strong>${money(ddsActivities.operating)}</strong>
+    </article>
+    <article class="dds-total-card">
+      <span>Инвестиционная ДДС</span>
+      <strong>${money(ddsActivities.investing)}</strong>
+    </article>
+    <article class="dds-total-card">
+      <span>Финансовая ДДС</span>
+      <strong>${money(ddsActivities.financing)}</strong>
     </article>
   `;
 
@@ -965,8 +1065,7 @@ function excelRow(cells, heading = false) {
 
 document.querySelector("#exportExcelBtn").addEventListener("click", () => {
   const operations = filteredOperations();
-  const income = sumBy(operations, "income");
-  const expense = sumBy(operations, "expense");
+  const summary = financialSummary(operations);
   const periodLabel = state.period === "all" ? "Все периоды" : monthName(state.period);
   const typeLabel = state.typeFilter === "all" ? "Доходы и расходы" : state.typeFilter === "income" ? "Доходы" : "Расходы";
   const rows = [
@@ -1001,9 +1100,9 @@ document.querySelector("#exportExcelBtn").addEventListener("click", () => {
         <p>${escapeExcel(periodLabel)} · ${escapeExcel(typeLabel)} · ${new Date().toLocaleDateString("ru-RU")}</p>
         <table>
           <tr class="summary">
-            <td>Доходы</td><td>${escapeExcel(money(income))}</td>
-            <td>Расходы</td><td>${escapeExcel(money(expense))}</td>
-            <td>Итог</td><td colspan="3">${escapeExcel(money(income - expense))}</td>
+            <td>Доходы</td><td>${escapeExcel(money(summary.income))}</td>
+            <td>Расходы ОПиУ</td><td>${escapeExcel(money(summary.expense))}</td>
+            <td>Чистая прибыль</td><td colspan="3">${escapeExcel(money(summary.profit))}</td>
           </tr>
         </table>
         <br>
