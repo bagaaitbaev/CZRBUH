@@ -58,6 +58,10 @@ button {
   cursor: pointer;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
@@ -71,7 +75,53 @@ select:focus-visible {
   min-height: 100vh;
 }
 
+.auth-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 14px;
+  width: min(420px, 100%);
+  padding: 28px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.auth-card h1,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted-strong);
+  font-weight: 600;
+}
+
+.auth-card input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.auth-message {
+  min-height: 22px;
+  color: var(--red);
+}
+
 .sidebar {
+  display: flex;
+  flex-direction: column;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -79,6 +129,19 @@ select:focus-visible {
   background: #0b1220;
   border-right: 1px solid rgba(255, 255, 255, .08);
   padding: 28px 18px;
+}
+
+.user-card {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding: 18px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+}
+
+.user-card span {
+  color: #cbd5e1;
+  font-size: 13px;
 }
 
 .brand {

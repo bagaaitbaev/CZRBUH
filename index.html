@@ -7,7 +7,29 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
+  <section class="auth-screen" id="authScreen">
+    <form class="auth-card" id="authForm">
+      <img class="brand-logo" src="assets/cezar-logo.png" alt="CEZAR">
+      <h1>CEZAR Finance</h1>
+      <p>Войдите в аккаунт сотрудника</p>
+      <label>Email
+        <input id="authEmail" type="email" autocomplete="email" required>
+      </label>
+      <label>Пароль
+        <input id="authPassword" type="password" autocomplete="current-password" required>
+      </label>
+      <label>Имя
+        <input id="authName" type="text" autocomplete="name" placeholder="Только для регистрации">
+      </label>
+      <div class="dialog-actions">
+        <button class="ghost-button" id="signUpBtn" type="button">Регистрация</button>
+        <button class="primary-button" type="submit">Войти</button>
+      </div>
+      <span class="auth-message" id="authMessage"></span>
+    </form>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar" aria-label="Навигация">
       <div class="brand">
         <img class="brand-logo" src="assets/cezar-logo.png" alt="CEZAR">
@@ -22,8 +44,14 @@
         <button class="nav-item" data-view="operations">Операции</button>
         <button class="nav-item" data-view="accounts">Счета</button>
         <button class="nav-item" data-view="reports">Отчеты</button>
-        <button class="nav-item" data-view="settings">Настройки</button>
+        <button class="nav-item" data-view="settings" data-admin-only>Настройки</button>
       </nav>
+
+      <div class="user-card">
+        <strong id="currentUserName"></strong>
+        <span id="currentUserRole"></span>
+        <button class="ghost-button" id="signOutBtn" type="button">Выйти</button>
+      </div>
     </aside>
 
     <main class="workspace">
@@ -210,6 +238,27 @@
 
       <section class="view" id="settings">
         <div class="settings-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Сотрудники</h2>
+                <span>Админ и операторы</span>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Имя</th>
+                    <th>Роль</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody id="staffTable"></tbody>
+              </table>
+            </div>
+          </section>
           <section class="panel">
             <div class="panel-header">
               <div>

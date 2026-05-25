@@ -1,18 +1,88 @@
-let incomeCategories = loadDirectory("cezar-finance-income-categories", {
+const supabaseUrl = "https://jxjwvdmiaqwpfhuimtog.supabase.co";
+const supabaseKey = "sb_publishable_fgAU_OjRdBG_Kpt4EMYDaQ_6PmkkOUq";
+const sessionKey = "cezar-finance-session";
+let authSession = JSON.parse(localStorage.getItem(sessionKey) || "null");
+
+const api = {
+  async request(path, options = {}) {
+    const headers = {
+      apikey: supabaseKey,
+      "Content-Type": "application/json",
+      Prefer: options.prefer || "",
+      ...(options.headers || {})
+    };
+    if (authSession?.access_token) headers.Authorization = `Bearer ${authSession.access_token}`;
+    const response = await fetch(`${supabaseUrl}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || response.statusText);
+    }
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  },
+  table(name) {
+    return {
+      list: query => api.request(`/rest/v1/${name}?${query}`),
+      insert: body => api.request(`/rest/v1/${name}`, { method: "POST", body, prefer: "return=minimal" }),
+      update: (query, body) => api.request(`/rest/v1/${name}?${query}`, { method: "PATCH", body, prefer: "return=minimal" }),
+      remove: query => api.request(`/rest/v1/${name}?${query}`, { method: "DELETE", prefer: "return=minimal" })
+    };
+  },
+  auth: {
+    async getSession() {
+      return authSession;
+    },
+    async getUser() {
+      if (!authSession?.access_token) return null;
+      return api.request("/auth/v1/user");
+    },
+    async signInWithPassword({ email, password }) {
+      const data = await api.request("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password } });
+      authSession = data;
+      localStorage.setItem(sessionKey, JSON.stringify(authSession));
+      return data;
+    },
+    async signUp({ email, password, fullName }) {
+      const data = await api.request("/auth/v1/signup", {
+        method: "POST",
+        body: { email, password, data: { full_name: fullName || "" } }
+      });
+      if (data?.access_token) {
+        authSession = data;
+        localStorage.setItem(sessionKey, JSON.stringify(authSession));
+      }
+      return data;
+    },
+    async signOut() {
+      authSession = null;
+      localStorage.removeItem(sessionKey);
+    }
+  }
+};
+
+let currentProfile = null;
+let staffProfiles = [];
+
+let incomeCategories = {
   "Продажи": ["Услуги и товары", "Прочие"],
   "Финансовые": ["Возврат", "Прочие доходы"]
-});
+};
 
-let expenseCategories = loadDirectory("cezar-finance-expense-categories", {
+let expenseCategories = {
   "1. Переменные": ["Закуп товаров", "Зарплата"],
   "2. Постоянные": ["Зарплата", "Питание сотрудников", "Связь и интернет", "Программное обеспечение", "Профессиональные услуги", "Аренда помещения", "Комунальные услуги"],
   "3. Коммерческие": ["Реклама", "Зарплата"],
   "4. Финансовые": ["Комиссии", "Прочие расходы"],
   "5. Инвестиционные": ["Оборудование", "Ремонт"],
   "Дивиденды": ["Дивиденды"]
-});
+};
 
-let startingAccounts = loadDirectory("cezar-finance-accounts", [
+let startingAccounts = [
   { name: "Kaspi Pay", balance: 1645345 },
   { name: "Kaspi Gold", balance: 0 },
   { name: "Наличные А", balance: 12020 },
@@ -20,9 +90,9 @@ let startingAccounts = loadDirectory("cezar-finance-accounts", [
   { name: "Депозит", balance: 0 },
   { name: "Наличные Б", balance: 0 },
   { name: "Доп", balance: 0 }
-]);
+];
 
-const departments = loadDirectory("cezar-finance-departments", ["Игровые приставки", "Бар", "Кальян", "Общие"]);
+let departments = ["Игровые приставки", "Бар", "Кальян", "Общие"];
 const kaspiPayAccount = "Kaspi Pay";
 const kaspiAcquiringRate = 0.0095;
 const kaspiTaxRate = 0.02;
@@ -44,17 +114,26 @@ const formatter = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 const monthFormatter = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" });
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-const initialOperations = loadOperations();
-
 const state = {
-  operations: initialOperations,
-  period: latestPeriod(initialOperations),
-  opuPeriod: latestPeriod(initialOperations),
+  operations: [],
+  period: "all",
+  opuPeriod: "all",
   typeFilter: "all",
   search: "",
   chartRange: "month"
 };
 
+const authScreen = document.querySelector("#authScreen");
+const appShell = document.querySelector("#appShell");
+const authForm = document.querySelector("#authForm");
+const authEmail = document.querySelector("#authEmail");
+const authPassword = document.querySelector("#authPassword");
+const authName = document.querySelector("#authName");
+const authMessage = document.querySelector("#authMessage");
+const signUpBtn = document.querySelector("#signUpBtn");
+const signOutBtn = document.querySelector("#signOutBtn");
+const currentUserName = document.querySelector("#currentUserName");
+const currentUserRole = document.querySelector("#currentUserRole");
 const views = document.querySelectorAll(".view");
 const navButtons = document.querySelectorAll(".nav-item");
 const periodFilter = document.querySelector("#periodFilter");
@@ -68,28 +147,6 @@ const subcategoryInput = document.querySelector("#subcategoryInput");
 const accountInput = document.querySelector("#accountInput");
 const searchInput = document.querySelector("#searchInput");
 
-function loadOperations() {
-  const saved = localStorage.getItem("cezar-finance-operations");
-  return normalizeOperations(saved ? JSON.parse(saved) : seedOperations);
-}
-
-function loadDirectory(key, fallback) {
-  const saved = localStorage.getItem(key);
-  if (!saved) return JSON.parse(JSON.stringify(fallback));
-  try {
-    return JSON.parse(saved);
-  } catch (error) {
-    return JSON.parse(JSON.stringify(fallback));
-  }
-}
-
-function saveDirectories() {
-  localStorage.setItem("cezar-finance-income-categories", JSON.stringify(incomeCategories));
-  localStorage.setItem("cezar-finance-expense-categories", JSON.stringify(expenseCategories));
-  localStorage.setItem("cezar-finance-accounts", JSON.stringify(startingAccounts));
-  localStorage.setItem("cezar-finance-departments", JSON.stringify(departments));
-}
-
 function normalizeOperations(items) {
   return items.map(item => ({ ...item, department: item.department || guessDepartment(item) }));
 }
@@ -102,8 +159,27 @@ function guessDepartment(item) {
   return "Игровые приставки";
 }
 
-function saveOperations() {
-  localStorage.setItem("cezar-finance-operations", JSON.stringify(state.operations));
+function isAdmin() {
+  return currentProfile?.role === "admin";
+}
+
+function showAuthMessage(message, error = true) {
+  authMessage.textContent = message || "";
+  authMessage.style.color = error ? "var(--red)" : "var(--green)";
+}
+
+function requireAdmin() {
+  if (isAdmin()) return true;
+  alert("Доступно только админу.");
+  return false;
+}
+
+function eq(field, value) {
+  return `${field}=eq.${encodeURIComponent(value)}`;
+}
+
+async function getOne(table, query) {
+  return (await api.table(table).list(`select=*&${query}&limit=1`))[0];
 }
 
 function money(value) {
@@ -135,7 +211,7 @@ function shortPeriodLabel(key) {
 }
 
 function getPeriods() {
-  const periods = [...new Set(state.operations.map(item => monthKey(item.date)))].sort().reverse();
+  const periods = [...new Set(activeOperations().map(item => monthKey(item.date)))].sort().reverse();
   return ["all", ...periods];
 }
 
@@ -144,7 +220,7 @@ function latestPeriod(items) {
 }
 
 function filteredOperations() {
-  return state.operations.filter(item => {
+  return activeOperations().filter(item => {
     const periodOk = state.period === "all" || monthKey(item.date) === state.period;
     const typeOk = state.typeFilter === "all" || item.type === state.typeFilter;
     const haystack = `${item.department} ${item.category} ${item.subcategory} ${item.account} ${item.description}`.toLowerCase();
@@ -181,7 +257,7 @@ function kaspiCharges(items) {
 
 function accountBalanceBefore(account, period) {
   if (period === "all") return account.balance;
-  const previousItems = state.operations.filter(item => monthKey(item.date) < period);
+  const previousItems = activeOperations().filter(item => monthKey(item.date) < period);
   const delta = previousItems.reduce((total, item) => {
     if (item.account !== account.name) return total;
     return total + (item.type === "income" ? item.amount : -item.amount);
@@ -198,7 +274,7 @@ function ddsActivity(item) {
 
 function accountBalances() {
   return startingAccounts.map(account => {
-    const delta = state.operations.reduce((total, item) => {
+    const delta = activeOperations().reduce((total, item) => {
       if (item.account !== account.name) return total;
       return total + (item.type === "income" ? item.amount : -item.amount);
     }, 0);
@@ -208,7 +284,82 @@ function accountBalances() {
 }
 
 function operationsForPeriod(period) {
-  return state.operations.filter(item => period === "all" || monthKey(item.date) === period);
+  return activeOperations().filter(item => period === "all" || monthKey(item.date) === period);
+}
+
+function activeOperations(items = state.operations) {
+  return items.filter(item => !item.cancelled);
+}
+
+function mapOperation(row) {
+  return {
+    id: row.id,
+    date: row.operation_date,
+    type: row.type,
+    department: row.department,
+    category: row.category,
+    subcategory: row.subcategory,
+    account: row.account,
+    amount: Number(row.amount),
+    description: row.description || "",
+    cancelled: row.cancelled
+  };
+}
+
+function categoryObject(rows) {
+  return rows.reduce((result, row) => {
+    result[row.name] = (row.subcategories || [])
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+      .map(item => item.name);
+    return result;
+  }, {});
+}
+
+async function loadAppData() {
+  const user = await api.auth.getUser();
+  let profile = null;
+  let profileError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      profile = (await api.table("profiles").list(`select=*&id=eq.${encodeURIComponent(user.id)}`))[0];
+      profileError = null;
+    } catch (error) {
+      profileError = error;
+    }
+    if (profile) break;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  if (profileError && !profile) throw profileError;
+  currentProfile = profile;
+
+  const [departmentsData, accountsData, categoriesData, subcategoriesData, operationsData, staffData] = await Promise.all([
+    api.table("departments").list("select=*&order=sort_order.asc,name.asc"),
+    api.table("accounts").list("select=*&order=sort_order.asc,name.asc"),
+    api.table("categories").list("select=*&order=sort_order.asc,name.asc"),
+    api.table("subcategories").list("select=*&order=sort_order.asc,name.asc"),
+    api.table("operations").list("select=*&order=operation_date.desc"),
+    isAdmin() ? api.table("profiles").list("select=*&order=created_at.desc") : Promise.resolve([])
+  ]);
+
+  const subcategoriesByCategory = subcategoriesData.reduce((result, item) => {
+    result[item.category_id] = result[item.category_id] || [];
+    result[item.category_id].push(item);
+    return result;
+  }, {});
+  const categoriesWithChildren = categoriesData.map(item => {
+    return { ...item, subcategories: subcategoriesByCategory[item.id] || [] };
+  });
+
+  departments = departmentsData.map(item => item.name);
+  startingAccounts = accountsData.map(item => ({ id: item.id, name: item.name, balance: Number(item.opening_balance) }));
+  const categories = categoriesWithChildren || [];
+  incomeCategories = categoryObject(categories.filter(item => item.kind === "income"));
+  expenseCategories = categoryObject(categories.filter(item => item.kind === "expense"));
+  state.operations = normalizeOperations((operationsData || []).map(mapOperation));
+  staffProfiles = staffData || [];
+  const latest = latestPeriod(activeOperations());
+  if (!getPeriods().includes(state.period)) state.period = latest;
+  if (!getPeriods().includes(state.opuPeriod)) state.opuPeriod = latest;
 }
 
 function emptyDepartmentTotals() {
@@ -321,7 +472,7 @@ function renderMetrics(items) {
 function renderCharts() {
   const keyGetter = state.chartRange === "week" ? weekKey : monthKey;
   const groups = new Map();
-  state.operations.forEach(item => {
+  activeOperations().forEach(item => {
     const key = keyGetter(item.date);
     const current = groups.get(key) || { income: 0, expense: 0 };
     current[item.type] += item.amount;
@@ -714,6 +865,7 @@ function renderSubcategories() {
 }
 
 function render() {
+  renderAccess();
   renderPeriodFilter();
   renderOpuPeriodFilter();
   const items = filteredOperations();
@@ -725,11 +877,37 @@ function render() {
   renderAccounts();
   renderReports();
   renderTags();
+  renderStaff();
 }
 
 function switchView(viewId) {
+  if (viewId === "settings" && !isAdmin()) viewId = "dashboard";
   views.forEach(view => view.classList.toggle("active", view.id === viewId));
   navButtons.forEach(button => button.classList.toggle("active", button.dataset.view === viewId));
+}
+
+function renderAccess() {
+  currentUserName.textContent = currentProfile?.full_name || currentProfile?.email || "";
+  currentUserRole.textContent = isAdmin() ? "Админ" : "Оператор";
+  document.querySelectorAll("[data-admin-only]").forEach(node => {
+    node.hidden = !isAdmin();
+  });
+  if (!isAdmin() && document.querySelector("#settings").classList.contains("active")) {
+    switchView("dashboard");
+  }
+}
+
+function renderStaff() {
+  const staffTable = document.querySelector("#staffTable");
+  if (!staffTable) return;
+  staffTable.innerHTML = staffProfiles.length ? staffProfiles.map(profile => `
+    <tr>
+      <td>${escapeHtml(profile.email)}</td>
+      <td>${escapeHtml(profile.full_name || "")}</td>
+      <td>${profile.role === "admin" ? "Админ" : "Оператор"}</td>
+      <td>${profile.is_active ? "Активен" : "Отключен"}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="4">Сотрудники появятся после регистрации</td></tr>`;
 }
 
 document.querySelectorAll("[data-open-form]").forEach(button => {
@@ -790,42 +968,49 @@ document.querySelectorAll("[data-report-tab]").forEach(button => {
   });
 });
 
-document.querySelector("#settings").addEventListener("click", event => {
+document.querySelector("#settings").addEventListener("click", async event => {
   const button = event.target.closest("[data-settings-action]");
   if (!button) return;
-  handleSettingsAction(button.dataset);
+  try {
+    await handleSettingsAction(button.dataset);
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-document.querySelector("#settings").addEventListener("change", event => {
+document.querySelector("#settings").addEventListener("change", async event => {
   const input = event.target.closest("[data-opening-balance]");
   if (!input) return;
-  updateOpeningBalance(input.dataset.openingBalance, input.value);
+  try {
+    await updateOpeningBalance(input.dataset.openingBalance, input.value);
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-function updateOpeningBalance(name, value) {
+async function updateOpeningBalance(name, value) {
+  if (!requireAdmin()) return;
   const account = startingAccounts.find(item => item.name === name);
   if (!account) return;
-  account.balance = Number(value) || 0;
-  saveDirectories();
-  renderMetrics(filteredOperations());
-  renderAccounts();
-  renderReports();
+  await api.table("accounts").update(eq("id", account.id), { opening_balance: Number(value) || 0 });
+  await refreshAndRender();
 }
 
-function handleSettingsAction(data) {
+async function handleSettingsAction(data) {
+  if (!requireAdmin()) return;
   const action = data.settingsAction;
-  if (action === "add-account") addAccount();
-  if (action === "rename-account") renameAccount(data.name);
-  if (action === "delete-account") deleteAccount(data.name);
-  if (action === "add-department") addDepartment();
-  if (action === "rename-department") renameDepartment(data.name);
-  if (action === "delete-department") deleteDepartment(data.name);
-  if (action === "add-category") addCategory(data.kind);
-  if (action === "rename-category") renameCategory(data.kind, data.category);
-  if (action === "delete-category") deleteCategory(data.kind, data.category);
-  if (action === "add-subcategory") addSubcategory(data.kind, data.category);
-  if (action === "rename-subcategory") renameSubcategory(data.kind, data.category, data.name);
-  if (action === "delete-subcategory") deleteSubcategory(data.kind, data.category, data.name);
+  if (action === "add-account") await addAccount();
+  if (action === "rename-account") await renameAccount(data.name);
+  if (action === "delete-account") await deleteAccount(data.name);
+  if (action === "add-department") await addDepartment();
+  if (action === "rename-department") await renameDepartment(data.name);
+  if (action === "delete-department") await deleteDepartment(data.name);
+  if (action === "add-category") await addCategory(data.kind);
+  if (action === "rename-category") await renameCategory(data.kind, data.category);
+  if (action === "delete-category") await deleteCategory(data.kind, data.category);
+  if (action === "add-subcategory") await addSubcategory(data.kind, data.category);
+  if (action === "rename-subcategory") await renameSubcategory(data.kind, data.category, data.name);
+  if (action === "delete-subcategory") await deleteSubcategory(data.kind, data.category, data.name);
 }
 
 function categoryMap(kind) {
@@ -841,9 +1026,8 @@ function askName(title, current = "") {
   return value ? value.trim() : "";
 }
 
-function saveSettingsAndRender() {
-  saveDirectories();
-  saveOperations();
+async function refreshAndRender() {
+  await loadAppData();
   render();
 }
 
@@ -851,18 +1035,18 @@ function isUsed(field, value, predicate = () => true) {
   return state.operations.some(item => item[field] === value && predicate(item));
 }
 
-function addAccount() {
+async function addAccount() {
   const name = askName("Название нового счета");
   if (!name) return;
   if (startingAccounts.some(account => account.name === name)) {
     alert("Такой счет уже есть.");
     return;
   }
-  startingAccounts.push({ name, balance: 0 });
-  saveSettingsAndRender();
+  await api.table("accounts").insert({ name, opening_balance: 0, sort_order: startingAccounts.length + 1 });
+  await refreshAndRender();
 }
 
-function renameAccount(oldName) {
+async function renameAccount(oldName) {
   const name = askName("Новое название счета", oldName);
   if (!name || name === oldName) return;
   if (startingAccounts.some(account => account.name === name)) {
@@ -871,61 +1055,55 @@ function renameAccount(oldName) {
   }
   const account = startingAccounts.find(item => item.name === oldName);
   if (!account) return;
-  account.name = name;
-  state.operations.forEach(item => {
-    if (item.account === oldName) item.account = name;
-  });
-  saveSettingsAndRender();
+  await api.table("accounts").update(eq("id", account.id), { name });
+  await refreshAndRender();
 }
 
-function deleteAccount(name) {
+async function deleteAccount(name) {
   if (isUsed("account", name)) {
     alert("Счет уже используется в операциях. Сначала переименуйте его или удалите связанные операции.");
     return;
   }
   if (!confirm(`Удалить счет "${name}"?`)) return;
-  startingAccounts = startingAccounts.filter(account => account.name !== name);
-  saveSettingsAndRender();
+  const account = startingAccounts.find(item => item.name === name);
+  await api.table("accounts").remove(eq("id", account.id));
+  await refreshAndRender();
 }
 
-function addDepartment() {
+async function addDepartment() {
   const name = askName("Название нового направления");
   if (!name) return;
   if (departments.includes(name)) {
     alert("Такое направление уже есть.");
     return;
   }
-  departments.push(name);
-  saveSettingsAndRender();
+  await api.table("departments").insert({ name, sort_order: departments.length + 1 });
+  await refreshAndRender();
 }
 
-function renameDepartment(oldName) {
+async function renameDepartment(oldName) {
   const name = askName("Новое название направления", oldName);
   if (!name || name === oldName) return;
   if (departments.includes(name)) {
     alert("Такое направление уже есть.");
     return;
   }
-  const index = departments.indexOf(oldName);
-  if (index === -1) return;
-  departments[index] = name;
-  state.operations.forEach(item => {
-    if (item.department === oldName) item.department = name;
-  });
-  saveSettingsAndRender();
+  const data = await getOne("departments", eq("name", oldName));
+  await api.table("departments").update(eq("id", data.id), { name });
+  await refreshAndRender();
 }
 
-function deleteDepartment(name) {
+async function deleteDepartment(name) {
   if (isUsed("department", name)) {
     alert("Направление уже используется в операциях. Сначала переименуйте его или удалите связанные операции.");
     return;
   }
   if (!confirm(`Удалить направление "${name}"?`)) return;
-  departments.splice(departments.indexOf(name), 1);
-  saveSettingsAndRender();
+  await api.table("departments").remove(eq("name", name));
+  await refreshAndRender();
 }
 
-function addCategory(kind) {
+async function addCategory(kind) {
   const categories = categoryMap(kind);
   const name = askName(`Название новой категории ${categoryTitle(kind)}`);
   if (!name) return;
@@ -933,11 +1111,11 @@ function addCategory(kind) {
     alert("Такая категория уже есть.");
     return;
   }
-  categories[name] = [];
-  saveSettingsAndRender();
+  await api.table("categories").insert({ kind, name, sort_order: Object.keys(categories).length + 1 });
+  await refreshAndRender();
 }
 
-function renameCategory(kind, oldName) {
+async function renameCategory(kind, oldName) {
   const categories = categoryMap(kind);
   const name = askName("Новое название категории", oldName);
   if (!name || name === oldName) return;
@@ -945,29 +1123,22 @@ function renameCategory(kind, oldName) {
     alert("Такая категория уже есть.");
     return;
   }
-  const next = {};
-  Object.entries(categories).forEach(([category, values]) => {
-    next[category === oldName ? name : category] = values;
-  });
-  if (kind === "income") incomeCategories = next;
-  else expenseCategories = next;
-  state.operations.forEach(item => {
-    if (item.type === kind && item.category === oldName) item.category = name;
-  });
-  saveSettingsAndRender();
+  const data = await getOne("categories", `${eq("kind", kind)}&${eq("name", oldName)}`);
+  await api.table("categories").update(eq("id", data.id), { name });
+  await refreshAndRender();
 }
 
-function deleteCategory(kind, name) {
+async function deleteCategory(kind, name) {
   if (isUsed("category", name, item => item.type === kind)) {
     alert("Категория уже используется в операциях. Сначала переименуйте ее или удалите связанные операции.");
     return;
   }
   if (!confirm(`Удалить категорию "${name}"?`)) return;
-  delete categoryMap(kind)[name];
-  saveSettingsAndRender();
+  await api.table("categories").remove(`${eq("kind", kind)}&${eq("name", name)}`);
+  await refreshAndRender();
 }
 
-function addSubcategory(kind, category) {
+async function addSubcategory(kind, category) {
   const categories = categoryMap(kind);
   const name = askName("Название новой подкатегории");
   if (!name) return;
@@ -975,11 +1146,12 @@ function addSubcategory(kind, category) {
     alert("Такая подкатегория уже есть.");
     return;
   }
-  categories[category].push(name);
-  saveSettingsAndRender();
+  const data = await getOne("categories", `${eq("kind", kind)}&${eq("name", category)}`);
+  await api.table("subcategories").insert({ category_id: data.id, name, sort_order: categories[category].length + 1 });
+  await refreshAndRender();
 }
 
-function renameSubcategory(kind, category, oldName) {
+async function renameSubcategory(kind, category, oldName) {
   const categories = categoryMap(kind);
   const name = askName("Новое название подкатегории", oldName);
   if (!name || name === oldName) return;
@@ -987,39 +1159,40 @@ function renameSubcategory(kind, category, oldName) {
     alert("Такая подкатегория уже есть.");
     return;
   }
-  const index = categories[category].indexOf(oldName);
-  if (index === -1) return;
-  categories[category][index] = name;
-  state.operations.forEach(item => {
-    if (item.type === kind && item.category === category && item.subcategory === oldName) item.subcategory = name;
-  });
-  saveSettingsAndRender();
+  const categoryRow = await getOne("categories", `${eq("kind", kind)}&${eq("name", category)}`);
+  const data = await getOne("subcategories", `${eq("category_id", categoryRow.id)}&${eq("name", oldName)}`);
+  await api.table("subcategories").update(eq("id", data.id), { name });
+  await refreshAndRender();
 }
 
-function deleteSubcategory(kind, category, name) {
+async function deleteSubcategory(kind, category, name) {
   if (isUsed("subcategory", name, item => item.type === kind && item.category === category)) {
     alert("Подкатегория уже используется в операциях. Сначала переименуйте ее или удалите связанные операции.");
     return;
   }
   if (!confirm(`Удалить подкатегорию "${name}"?`)) return;
-  const values = categoryMap(kind)[category];
-  values.splice(values.indexOf(name), 1);
-  saveSettingsAndRender();
+  const categoryRow = await getOne("categories", `${eq("kind", kind)}&${eq("name", category)}`);
+  const data = await getOne("subcategories", `${eq("category_id", categoryRow.id)}&${eq("name", name)}`);
+  await api.table("subcategories").remove(eq("id", data.id));
+  await refreshAndRender();
 }
 
-document.querySelector("#operationsTable").addEventListener("click", event => {
+document.querySelector("#operationsTable").addEventListener("click", async event => {
   const button = event.target.closest("[data-delete-operation]");
   if (!button) return;
-  const id = Number(button.dataset.deleteOperation);
+  const id = button.dataset.deleteOperation;
   const operation = state.operations.find(item => item.id === id);
   if (!operation) return;
 
   const ok = confirm(`Отменить операцию: ${operation.description || operation.subcategory}, ${money(operation.amount)}?`);
   if (!ok) return;
 
-  state.operations = state.operations.filter(item => item.id !== id);
-  saveOperations();
-  render();
+  try {
+    await api.table("operations").update(eq("id", id), { cancelled: true, cancelled_by: currentProfile.id, cancelled_at: new Date().toISOString() });
+    await refreshAndRender();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 searchInput.addEventListener("input", () => {
@@ -1030,24 +1203,29 @@ searchInput.addEventListener("input", () => {
 typeInput.addEventListener("change", renderFormOptions);
 categoryInput.addEventListener("change", renderSubcategories);
 
-operationForm.addEventListener("submit", event => {
+operationForm.addEventListener("submit", async event => {
   event.preventDefault();
   const data = new FormData(operationForm);
-  state.operations.push({
-    id: Date.now(),
+  const operation = {
     type: data.get("type"),
-    date: data.get("date"),
+    operation_date: data.get("date"),
     amount: Number(data.get("amount")),
     account: data.get("account"),
     department: data.get("department"),
     category: data.get("category"),
     subcategory: data.get("subcategory"),
-    description: data.get("description").trim()
-  });
-  saveOperations();
+    description: data.get("description").trim(),
+    created_by: currentProfile.id
+  };
+  try {
+    await api.table("operations").insert(operation);
+  } catch (error) {
+    alert(error.message);
+    return;
+  }
   operationDialog.close();
   state.period = monthKey(data.get("date"));
-  render();
+  await refreshAndRender();
 });
 
 function escapeExcel(value) {
@@ -1119,5 +1297,65 @@ document.querySelector("#exportExcelBtn").addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 });
 
-renderFormOptions();
-render();
+authForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  showAuthMessage("Входим...", false);
+  try {
+    await api.auth.signInWithPassword({
+      email: authEmail.value.trim(),
+      password: authPassword.value
+    });
+  } catch (error) {
+    showAuthMessage(error.message);
+    return;
+  }
+  await initApp();
+});
+
+signUpBtn.addEventListener("click", async () => {
+  showAuthMessage("Создаем аккаунт...", false);
+  try {
+    await api.auth.signUp({
+      email: authEmail.value.trim(),
+      password: authPassword.value,
+      fullName: authName.value.trim()
+    });
+  } catch (error) {
+    showAuthMessage(error.message);
+    return;
+  }
+  showAuthMessage("Аккаунт создан. Если Supabase попросит подтверждение email, подтвердите почту и войдите.", false);
+  await initApp();
+});
+
+signOutBtn.addEventListener("click", async () => {
+  await api.auth.signOut();
+  currentProfile = null;
+  staffProfiles = [];
+  appShell.hidden = true;
+  authScreen.hidden = false;
+});
+
+async function initApp() {
+  const session = await api.auth.getSession();
+  if (!session) {
+    appShell.hidden = true;
+    authScreen.hidden = false;
+    return;
+  }
+
+  try {
+    await loadAppData();
+    renderFormOptions();
+    authScreen.hidden = true;
+    appShell.hidden = false;
+    render();
+    showAuthMessage("");
+  } catch (error) {
+    showAuthMessage(error.message || "Не удалось загрузить данные");
+    appShell.hidden = true;
+    authScreen.hidden = false;
+  }
+}
+
+initApp();
