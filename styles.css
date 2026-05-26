@@ -729,6 +729,46 @@ table {
   border-collapse: collapse;
 }
 
+.operations-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.operations-table th,
+.operations-table td {
+  padding: 12px 10px;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.operations-table th:nth-child(1) {
+  width: 94px;
+}
+
+.operations-table th:nth-child(2) {
+  width: 86px;
+}
+
+.operations-table th:nth-child(6) {
+  width: 104px;
+}
+
+.operations-table th:nth-child(7) {
+  width: 118px;
+}
+
+.operations-table th:nth-child(8) {
+  width: 104px;
+}
+
+.operation-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .compact-table table {
   min-width: 620px;
 }
@@ -1316,6 +1356,36 @@ label select {
   .report-tabs {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .operations-table,
+  .operations-table thead,
+  .operations-table tbody,
+  .operations-table tr,
+  .operations-table td {
+    display: block;
+  }
+
+  .operations-table thead {
+    display: none;
+  }
+
+  .operations-table tr {
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .operations-table td {
+    padding: 4px 0;
+    border-bottom: 0;
+  }
+
+  .operations-table td:last-child {
+    margin-top: 10px;
+  }
+
+  .operations-table .danger-button {
+    width: 100%;
   }
 
   .report-tabs {

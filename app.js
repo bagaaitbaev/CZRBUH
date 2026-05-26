@@ -83,9 +83,9 @@ let expenseCategories = {
 };
 
 let startingAccounts = [
-  { name: "Kaspi Pay", balance: 1645345 },
+  { name: "Kaspi Pay", balance: 0 },
   { name: "Kaspi Gold", balance: 0 },
-  { name: "Наличные А", balance: 12020 },
+  { name: "Наличные А", balance: 0 },
   { name: "Halyk", balance: 0 },
   { name: "Депозит", balance: 0 },
   { name: "Наличные Б", balance: 0 },
@@ -97,18 +97,7 @@ const kaspiPayAccount = "Kaspi Pay";
 const kaspiAcquiringRate = 0.0095;
 const kaspiTaxRate = 0.02;
 
-const seedOperations = [
-  { id: 1, date: "2026-05-01", type: "income", department: "Игровые приставки", category: "Продажи", subcategory: "Услуги и товары", account: "Kaspi Pay", amount: 1211225, description: "Выручка клуба" },
-  { id: 2, date: "2026-05-01", type: "income", department: "Бар", category: "Продажи", subcategory: "Услуги и товары", account: "Kaspi Pay", amount: 1091300, description: "Выручка бара" },
-  { id: 3, date: "2026-05-04", type: "expense", department: "Бар", category: "1. Переменные", subcategory: "Закуп товаров", account: "Наличные А", amount: 933195, description: "Закуп товаров" },
-  { id: 4, date: "2026-05-08", type: "expense", department: "Общие", category: "2. Постоянные", subcategory: "Зарплата", account: "Kaspi Gold", amount: 464000, description: "Зарплата" },
-  { id: 5, date: "2026-05-09", type: "expense", department: "Общие", category: "2. Постоянные", subcategory: "Питание сотрудников", account: "Kaspi Pay", amount: 42600, description: "Питание сотрудников" },
-  { id: 6, date: "2026-05-10", type: "expense", department: "Общие", category: "2. Постоянные", subcategory: "Прочие расходы", account: "Kaspi Pay", amount: 1500, description: "Прочие расходы" },
-  { id: 7, date: "2026-05-12", type: "expense", department: "Общие", category: "2. Постоянные", subcategory: "Профессиональные услуги", account: "Kaspi Pay", amount: 21000, description: "Профессиональные услуги" },
-  { id: 8, date: "2026-05-15", type: "expense", department: "Общие", category: "2. Постоянные", subcategory: "Аренда помещения", account: "Kaspi Pay", amount: 500000, description: "Аренда помещения" },
-  { id: 9, date: "2026-04-20", type: "income", department: "Игровые приставки", category: "Продажи", subcategory: "Услуги и товары", account: "Kaspi Pay", amount: 1435000, description: "Выручка клуба" },
-  { id: 10, date: "2026-04-24", type: "expense", department: "Общие", category: "3. Коммерческие", subcategory: "Реклама", account: "Kaspi Pay", amount: 120000, description: "Реклама" }
-];
+const seedOperations = [];
 
 const formatter = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 const monthFormatter = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" });
@@ -602,10 +591,12 @@ function renderOperationsTable(items) {
       <td><span class="badge ${item.type}">${item.type === "income" ? "Доход" : "Расход"}</span></td>
       <td>${item.department}</td>
       <td>${item.category}</td>
-      <td>${item.subcategory}</td>
+      <td>
+        <div>${item.subcategory}</div>
+        ${item.description ? `<span class="operation-note">${item.description}</span>` : ""}
+      </td>
       <td>${item.account}</td>
       <td class="amount-${item.type}">${item.type === "income" ? "+" : "-"}${money(item.amount)}</td>
-      <td>${item.description || ""}</td>
       <td><button class="danger-button" data-delete-operation="${item.id}" type="button">Отменить</button></td>
     </tr>
   `).join("");
@@ -1394,3 +1385,4 @@ async function initApp() {
 }
 
 initApp();
+
