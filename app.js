@@ -1267,8 +1267,15 @@ function renderStaff() {
       <td>${escapeHtml(profile.full_name || "")}</td>
       <td>${profile.role === "admin" ? "Админ" : "Оператор"}</td>
       <td>${profile.is_active ? "Активен" : "Отключен"}</td>
+      <td>
+        ${profile.role === "admin" ? "" : `
+          <button class="settings-action-button ${profile.is_active ? "danger" : ""}" data-settings-action="toggle-staff" data-id="${escapeHtml(profile.id)}" data-active="${profile.is_active ? "false" : "true"}" type="button">
+            ${profile.is_active ? "Отключить" : "Активировать"}
+          </button>
+        `}
+      </td>
     </tr>
-  `).join("") : `<tr><td colspan="4">Сотрудники появятся после регистрации</td></tr>`;
+  `).join("") : `<tr><td colspan="5">Сотрудники появятся после регистрации</td></tr>`;
 }
 
 document.querySelectorAll("[data-open-form]").forEach(button => {
@@ -1372,6 +1379,14 @@ async function handleSettingsAction(data) {
   if (action === "add-subcategory") await addSubcategory(data.kind, data.category);
   if (action === "rename-subcategory") await renameSubcategory(data.kind, data.category, data.name);
   if (action === "delete-subcategory") await deleteSubcategory(data.kind, data.category, data.name);
+  if (action === "toggle-staff") await toggleStaff(data.id, data.active === "true");
+}
+
+async function toggleStaff(id, active) {
+  const profile = staffProfiles.find(item => item.id === id);
+  if (!profile || profile.role === "admin") return;
+  await api.table("profiles").update(eq("id", id), { is_active: active });
+  await refreshAndRender();
 }
 
 function categoryMap(kind) {
