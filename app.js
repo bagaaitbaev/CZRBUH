@@ -1,7 +1,13 @@
 const supabaseUrl = "https://jxjwvdmiaqwpfhuimtog.supabase.co";
 const supabaseKey = "sb_publishable_fgAU_OjRdBG_Kpt4EMYDaQ_6PmkkOUq";
 const sessionKey = "cezar-finance-session";
-let authSession = JSON.parse(localStorage.getItem(sessionKey) || "null");
+let authSession = null;
+
+try {
+  authSession = JSON.parse(localStorage.getItem(sessionKey) || "null");
+} catch {
+  localStorage.removeItem(sessionKey);
+}
 
 const api = {
   async request(path, options = {}) {
@@ -355,6 +361,10 @@ function escapeHtml(value) {
     "\"": "&quot;",
     "'": "&#039;"
   }[symbol]));
+}
+
+function safeOption(value) {
+  return `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
 }
 
 function kaspiPayIncome(items) {
@@ -795,7 +805,7 @@ function renderCategoryBars(items) {
   const max = Math.max(...rows.map(row => row.amount), 1);
   document.querySelector("#categoryBars").innerHTML = rows.length ? rows.map(row => `
     <div class="bar-row">
-      <div class="bar-label">${row.category}</div>
+      <div class="bar-label">${escapeHtml(row.category)}</div>
       <div class="bar-track"><div class="bar-fill ${row.type}" style="width:${Math.max(5, row.amount / max * 100)}%"></div></div>
       <div class="money">${money(row.amount)}</div>
     </div>
@@ -807,8 +817,8 @@ function renderRecent(items) {
   document.querySelector("#recentList").innerHTML = recent.length ? recent.map(item => `
     <div class="list-item">
       <div>
-        <strong>${item.description || item.subcategory}</strong>
-        <span>${dateFormatter.format(new Date(item.date))} · ${item.account} · ${item.subcategory}</span>
+        <strong>${escapeHtml(item.description || item.subcategory)}</strong>
+        <span>${dateFormatter.format(new Date(item.date))} · ${escapeHtml(item.account)} · ${escapeHtml(item.subcategory)}</span>
       </div>
       <strong class="amount-${item.type}">${item.type === "income" ? "+" : "-"}${money(item.amount)}</strong>
     </div>
@@ -821,15 +831,15 @@ function renderOperationsTable(items) {
     <tr>
       <td>${dateFormatter.format(new Date(item.date))}</td>
       <td><span class="badge ${item.type}">${item.type === "income" ? "Доход" : "Расход"}</span></td>
-      <td>${item.department}</td>
-      <td>${item.category}</td>
+      <td>${escapeHtml(item.department)}</td>
+      <td>${escapeHtml(item.category)}</td>
       <td>
-        <div>${item.subcategory}</div>
-        ${item.description ? `<span class="operation-note">${item.description}</span>` : ""}
+        <div>${escapeHtml(item.subcategory)}</div>
+        ${item.description ? `<span class="operation-note">${escapeHtml(item.description)}</span>` : ""}
       </td>
-      <td>${item.account}</td>
+      <td>${escapeHtml(item.account)}</td>
       <td class="amount-${item.type}">${item.type === "income" ? "+" : "-"}${money(item.amount)}</td>
-      <td><button class="danger-button" data-delete-operation="${item.id}" type="button">Отменить</button></td>
+      <td><button class="danger-button" data-delete-operation="${escapeHtml(item.id)}" type="button">Отменить</button></td>
     </tr>
   `).join("");
 }
@@ -839,7 +849,7 @@ function renderAccounts() {
   const periodCharges = kaspiCharges(periodItems);
   document.querySelector("#accountsGrid").innerHTML = accountBalances().map(account => `
     <article class="account-card">
-      <span>${account.name}</span>
+      <span>${escapeHtml(account.name)}</span>
       <strong>${money(account.current)}</strong>
       ${account.name === kaspiPayAccount ? `
         <div class="account-details">
@@ -1000,7 +1010,7 @@ function renderReports() {
   document.querySelector("#ddsTable").innerHTML = ddsRows.map(row => `
     <article class="dds-account-card">
       <div class="dds-account-head">
-        <strong>${row.name}</strong>
+        <strong>${escapeHtml(row.name)}</strong>
         <span>${money(row.after)}</span>
       </div>
       <div class="dds-flow">
@@ -1038,7 +1048,7 @@ function renderOpuRow(row) {
     ? `<td colspan="2" class="opu-percent-only">${opuPercent(total, totalBase)}</td>`
     : `<td class="key-value"><strong>${money(total)}</strong></td><td>${opuPercent(total, totalBase)}</td>`;
 
-  return `<tr class="${rowClass}"><td>${row.title}</td>${cells}${totalCells}</tr>`;
+  return `<tr class="${rowClass}"><td>${escapeHtml(row.title)}</td>${cells}${totalCells}</tr>`;
 }
 
 function renderTags() {
@@ -1097,17 +1107,17 @@ function renderCategorySettings(kind, categories) {
 }
 
 function renderFormOptions() {
-  accountInput.innerHTML = startingAccounts.map(account => `<option>${account.name}</option>`).join("");
-  departmentInput.innerHTML = departments.map(department => `<option>${department}</option>`).join("");
+  accountInput.innerHTML = startingAccounts.map(account => safeOption(account.name)).join("");
+  departmentInput.innerHTML = departments.map(department => safeOption(department)).join("");
   const categories = typeInput.value === "income" ? incomeCategories : expenseCategories;
-  categoryInput.innerHTML = Object.keys(categories).map(category => `<option>${category}</option>`).join("");
+  categoryInput.innerHTML = Object.keys(categories).map(category => safeOption(category)).join("");
   renderSubcategories();
 }
 
 function renderSubcategories() {
   const categories = typeInput.value === "income" ? incomeCategories : expenseCategories;
   const values = categories[categoryInput.value] || [];
-  subcategoryInput.innerHTML = values.map(value => `<option>${value}</option>`).join("");
+  subcategoryInput.innerHTML = values.map(value => safeOption(value)).join("");
 }
 
 function render() {

@@ -28,7 +28,13 @@ http.createServer((request, response) => {
       return;
     }
 
-    response.writeHead(200, { "Content-Type": types[path.extname(filePath)] || "application/octet-stream" });
+    response.writeHead(200, {
+      "Content-Type": types[path.extname(filePath)] || "application/octet-stream",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://jxjwvdmiaqwpfhuimtog.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY"
+    });
     response.end(data);
   });
 }).listen(port, "127.0.0.1", () => {
