@@ -10,20 +10,23 @@
   <section class="auth-screen" id="authScreen">
     <form class="auth-card" id="authForm">
       <img class="brand-logo" src="assets/cezar-logo.png" alt="CEZAR">
-      <h1>CEZAR Finance</h1>
-      <p>Войдите в аккаунт сотрудника</p>
+      <h1 id="authTitle">Вход в CEZAR Finance</h1>
+      <p id="authSubtitle">Для сотрудников, у которых уже есть аккаунт.</p>
+      <div class="auth-mode" aria-label="Режим авторизации">
+        <button class="active" id="authLoginMode" type="button">Вход</button>
+        <button id="authRegisterMode" type="button">Регистрация</button>
+      </div>
       <label>Email
         <input id="authEmail" type="email" autocomplete="email" required>
       </label>
       <label>Пароль
         <input id="authPassword" type="password" autocomplete="current-password" required>
       </label>
-      <label>Имя
+      <label id="authNameLabel" hidden>Имя
         <input id="authName" type="text" autocomplete="name" placeholder="Только для регистрации">
       </label>
       <div class="dialog-actions">
-        <button class="ghost-button" id="signUpBtn" type="button">Регистрация</button>
-        <button class="primary-button" type="submit">Войти</button>
+        <button class="primary-button" id="authSubmitBtn" type="submit">Войти</button>
       </div>
       <span class="auth-message" id="authMessage"></span>
     </form>
@@ -86,6 +89,21 @@
             <strong id="balanceMetric">0 тг</strong>
           </article>
         </div>
+
+        <section class="revenue-insight" id="revenueInsight">
+          <div>
+            <span class="eyebrow">Выручка к прошлому месяцу</span>
+            <h2 id="revenueInsightTitle">Нет данных для сравнения</h2>
+            <p id="revenueInsightText">Добавьте операции дохода, чтобы видеть темп месяца.</p>
+          </div>
+          <div class="revenue-score">
+            <strong id="revenueInsightPercent">0%</strong>
+            <span id="revenueInsightAmount">0 тг</span>
+          </div>
+          <div class="revenue-progress" aria-hidden="true">
+            <span id="revenueInsightBar"></span>
+          </div>
+        </section>
 
         <section class="panel chart-panel">
           <div class="panel-header">

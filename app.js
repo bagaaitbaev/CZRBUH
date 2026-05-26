@@ -118,8 +118,13 @@ const authForm = document.querySelector("#authForm");
 const authEmail = document.querySelector("#authEmail");
 const authPassword = document.querySelector("#authPassword");
 const authName = document.querySelector("#authName");
+const authTitle = document.querySelector("#authTitle");
+const authSubtitle = document.querySelector("#authSubtitle");
+const authNameLabel = document.querySelector("#authNameLabel");
+const authLoginMode = document.querySelector("#authLoginMode");
+const authRegisterMode = document.querySelector("#authRegisterMode");
+const authSubmitBtn = document.querySelector("#authSubmitBtn");
 const authMessage = document.querySelector("#authMessage");
-const signUpBtn = document.querySelector("#signUpBtn");
 const signOutBtn = document.querySelector("#signOutBtn");
 const currentUserName = document.querySelector("#currentUserName");
 const currentUserRole = document.querySelector("#currentUserRole");
@@ -135,6 +140,7 @@ const categoryInput = document.querySelector("#categoryInput");
 const subcategoryInput = document.querySelector("#subcategoryInput");
 const accountInput = document.querySelector("#accountInput");
 const searchInput = document.querySelector("#searchInput");
+let authMode = "login";
 
 function normalizeOperations(items) {
   return items.map(item => ({ ...item, department: item.department || guessDepartment(item) }));
@@ -170,6 +176,22 @@ function validateAuthFields({ email, password }) {
   if (!password) return "Введите пароль.";
   if (password.length < 6) return "Пароль должен быть не короче 6 символов.";
   return "";
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const isRegister = mode === "register";
+  authTitle.textContent = isRegister ? "Регистрация сотрудника" : "Вход в CEZAR Finance";
+  authSubtitle.textContent = isRegister
+    ? "Создайте аккаунт сотрудника. Первый аккаунт остается админом, остальные будут операторами."
+    : "Для сотрудников, у которых уже есть аккаунт.";
+  authNameLabel.hidden = !isRegister;
+  authName.required = isRegister;
+  authPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  authSubmitBtn.textContent = isRegister ? "Зарегистрироваться" : "Войти";
+  authLoginMode.classList.toggle("active", !isRegister);
+  authRegisterMode.classList.toggle("active", isRegister);
+  showAuthMessage("");
 }
 
 function friendlyAuthError(error) {
@@ -229,6 +251,23 @@ function getPeriods() {
 
 function latestPeriod(items) {
   return [...new Set(items.map(item => monthKey(item.date)))].sort().reverse()[0] || "all";
+}
+
+function previousMonthKey(key) {
+  const [year, month] = key.split("-").map(Number);
+  const date = new Date(year, month - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function daysInMonth(key) {
+  const [year, month] = key.split("-").map(Number);
+  return new Date(year, month, 0).getDate();
+}
+
+function revenueForMonth(key, dayLimit = Infinity) {
+  return activeOperations()
+    .filter(item => item.type === "income" && monthKey(item.date) === key && new Date(item.date).getDate() <= dayLimit)
+    .reduce((total, item) => total + item.amount, 0);
 }
 
 function filteredOperations() {
@@ -479,6 +518,60 @@ function renderMetrics(items) {
   document.querySelector("#profitMetric").textContent = money(summary.profit);
   document.querySelector("#balanceMetric").textContent = money(balance);
   document.querySelector("#selectedPeriodLabel").textContent = state.period === "all" ? "Все периоды" : monthName(state.period);
+}
+
+function renderRevenueInsight() {
+  const insight = document.querySelector("#revenueInsight");
+  const title = document.querySelector("#revenueInsightTitle");
+  const text = document.querySelector("#revenueInsightText");
+  const percentNode = document.querySelector("#revenueInsightPercent");
+  const amountNode = document.querySelector("#revenueInsightAmount");
+  const bar = document.querySelector("#revenueInsightBar");
+  const period = state.period === "all" ? latestPeriod(activeOperations()) : state.period;
+
+  insight.classList.remove("ahead", "behind", "neutral");
+  if (period === "all") {
+    insight.classList.add("neutral");
+    title.textContent = "Нет данных для сравнения";
+    text.textContent = "Добавьте доходы за текущий и прошлый месяц, чтобы видеть темп.";
+    percentNode.textContent = "0%";
+    amountNode.textContent = money(0);
+    bar.style.width = "0%";
+    return;
+  }
+
+  const previous = previousMonthKey(period);
+  const today = new Date();
+  const isCurrentMonth = period === monthKey(today.toISOString().slice(0, 10));
+  const dayLimit = isCurrentMonth ? Math.min(today.getDate(), daysInMonth(previous)) : Infinity;
+  const currentRevenue = revenueForMonth(period);
+  const previousComparable = revenueForMonth(previous, dayLimit);
+  const previousTotal = revenueForMonth(previous);
+
+  if (!previousTotal && !previousComparable) {
+    insight.classList.add("neutral");
+    title.textContent = "Прошлый месяц пустой";
+    text.textContent = `${monthName(period)}: ${money(currentRevenue)}. Для сравнения нужны доходы за ${monthName(previous)}.`;
+    percentNode.textContent = "0%";
+    amountNode.textContent = money(currentRevenue);
+    bar.style.width = currentRevenue ? "100%" : "0%";
+    return;
+  }
+
+  const benchmark = previousComparable || previousTotal;
+  const diff = currentRevenue - benchmark;
+  const percent = benchmark ? Math.round((diff / benchmark) * 100) : 0;
+  const progress = previousTotal ? Math.min(140, Math.round((currentRevenue / previousTotal) * 100)) : 100;
+  const ahead = diff >= 0;
+
+  insight.classList.add(ahead ? "ahead" : "behind");
+  title.textContent = ahead ? "Обгоняем прошлый месяц" : "Отстаем от прошлого месяца";
+  text.textContent = isCurrentMonth
+    ? `Сравнение по ${dayLimit} день месяца: сейчас ${money(currentRevenue)}, было ${money(benchmark)}.`
+    : `${monthName(period)} против ${monthName(previous)}: ${money(currentRevenue)} против ${money(benchmark)}.`;
+  percentNode.textContent = `${ahead ? "+" : "-"}${Math.abs(percent)}%`;
+  amountNode.textContent = `${ahead ? "+" : "-"}${money(Math.abs(diff))}`;
+  bar.style.width = `${Math.max(4, Math.min(progress, 100))}%`;
 }
 
 function renderCharts() {
@@ -884,6 +977,7 @@ function render() {
   renderOpuPeriodFilter();
   const items = filteredOperations();
   renderMetrics(items);
+  renderRevenueInsight();
   renderCharts();
   renderCategoryBars(items);
   renderRecent(items);
@@ -1311,6 +1405,9 @@ document.querySelector("#exportExcelBtn").addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 });
 
+authLoginMode.addEventListener("click", () => setAuthMode("login"));
+authRegisterMode.addEventListener("click", () => setAuthMode("register"));
+
 authForm.addEventListener("submit", async event => {
   event.preventDefault();
   const values = authValues();
@@ -1319,38 +1416,27 @@ authForm.addEventListener("submit", async event => {
     showAuthMessage(validationMessage);
     return;
   }
-  showAuthMessage("Входим...", false);
-  try {
-    await api.auth.signInWithPassword({
-      email: values.email,
-      password: values.password
-    });
-  } catch (error) {
-    showAuthMessage(friendlyAuthError(error));
-    return;
-  }
-  await initApp();
-});
 
-signUpBtn.addEventListener("click", async () => {
-  const values = authValues();
-  const validationMessage = validateAuthFields(values);
-  if (validationMessage) {
-    showAuthMessage(validationMessage);
-    return;
-  }
-  showAuthMessage("Создаем аккаунт...", false);
   try {
-    await api.auth.signUp({
-      email: values.email,
-      password: values.password,
-      fullName: values.fullName
-    });
+    if (authMode === "register") {
+      showAuthMessage("Создаем аккаунт...", false);
+      await api.auth.signUp({
+        email: values.email,
+        password: values.password,
+        fullName: values.fullName
+      });
+      showAuthMessage("Аккаунт создан. Если Supabase попросит подтверждение email, подтвердите почту и войдите.", false);
+    } else {
+      showAuthMessage("Входим...", false);
+      await api.auth.signInWithPassword({
+        email: values.email,
+        password: values.password
+      });
+    }
   } catch (error) {
     showAuthMessage(friendlyAuthError(error));
     return;
   }
-  showAuthMessage("Аккаунт создан. Если Supabase попросит подтверждение email, подтвердите почту и войдите.", false);
   await initApp();
 });
 

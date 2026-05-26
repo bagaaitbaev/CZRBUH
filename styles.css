@@ -98,6 +98,40 @@ select:focus-visible {
   margin: 0;
 }
 
+.auth-card h1 {
+  font-size: 30px;
+  line-height: 1.12;
+}
+
+.auth-card p {
+  color: var(--muted);
+}
+
+.auth-mode {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-soft);
+}
+
+.auth-mode button {
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--muted-strong);
+  background: transparent;
+  font-weight: 700;
+}
+
+.auth-mode button.active {
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-xs);
+}
+
 .auth-card label {
   display: grid;
   gap: 6px;
@@ -117,6 +151,14 @@ select:focus-visible {
 .auth-message {
   min-height: 22px;
   color: var(--red);
+}
+
+.auth-card .dialog-actions {
+  justify-content: stretch;
+}
+
+.auth-card .primary-button {
+  width: 100%;
 }
 
 .sidebar {
@@ -373,6 +415,92 @@ input:focus {
 
 .chart-panel {
   margin-bottom: 20px;
+}
+
+.revenue-insight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 24px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+.revenue-insight h2,
+.revenue-insight p {
+  margin: 0;
+}
+
+.revenue-insight h2 {
+  margin-top: 4px;
+  font-size: 22px;
+  line-height: 1.18;
+}
+
+.revenue-insight p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.revenue-score {
+  min-width: 150px;
+  text-align: right;
+}
+
+.revenue-score strong,
+.revenue-score span {
+  display: block;
+}
+
+.revenue-score strong {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.revenue-score span {
+  margin-top: 6px;
+  color: var(--muted-strong);
+  font-weight: 700;
+}
+
+.revenue-progress {
+  grid-column: 1 / -1;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-soft);
+}
+
+.revenue-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  transition: width var(--ease);
+}
+
+.revenue-insight.ahead .revenue-progress span {
+  background: var(--green);
+}
+
+.revenue-insight.behind .revenue-progress span {
+  background: var(--red);
+}
+
+.revenue-insight.neutral .revenue-progress span {
+  background: var(--accent);
+}
+
+.revenue-insight.ahead .revenue-score strong {
+  color: var(--green);
+}
+
+.revenue-insight.behind .revenue-score strong {
+  color: var(--red);
 }
 
 .compact-segmented .segment {
@@ -1310,6 +1438,7 @@ label select {
   }
 
   .finance-charts,
+  .revenue-insight,
   .report-summary,
   .split-layout,
   .report-layout,
@@ -1322,6 +1451,10 @@ label select {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .revenue-score {
+    text-align: left;
   }
 }
 
@@ -1343,6 +1476,14 @@ label select {
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .revenue-insight {
+    padding: 16px;
+  }
+
+  .revenue-score strong {
+    font-size: 28px;
   }
 
   .topbar-actions > *,
