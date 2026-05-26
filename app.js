@@ -2,7 +2,9 @@ const supabaseUrl = "https://jxjwvdmiaqwpfhuimtog.supabase.co";
 const supabaseKey = "sb_publishable_fgAU_OjRdBG_Kpt4EMYDaQ_6PmkkOUq";
 const appUrl = window.location.origin;
 const sessionKey = "cezar-finance-session";
+const sessionDurationMs = 2 * 60 * 60 * 1000;
 let authSession = null;
+let sessionExpiryTimer = null;
 
 try {
   authSession = JSON.parse(localStorage.getItem(sessionKey) || "null");
@@ -12,25 +14,103 @@ try {
 
 const authParams = new URLSearchParams(window.location.hash.slice(1));
 if (authParams.has("access_token")) {
-  authSession = {
+  authSession = prepareSession({
     access_token: authParams.get("access_token"),
     refresh_token: authParams.get("refresh_token"),
     token_type: authParams.get("token_type") || "bearer",
     expires_in: Number(authParams.get("expires_in") || 0)
-  };
-  localStorage.setItem(sessionKey, JSON.stringify(authSession));
+  });
+  saveSession(authSession);
   history.replaceState(null, "", window.location.pathname + window.location.search);
+}
+
+function prepareSession(session, previousSession = null) {
+  const now = Date.now();
+  const startedAt = previousSession?.started_at || now;
+  const expiresIn = Number(session.expires_in || 0);
+  return {
+    ...session,
+    started_at: startedAt,
+    expires_at_ms: expiresIn ? now + expiresIn * 1000 : session.expires_at_ms,
+    expires_by_activity_ms: previousSession?.expires_by_activity_ms || startedAt + sessionDurationMs
+  };
+}
+
+function sessionExpired(session = authSession) {
+  return !session?.access_token || Date.now() >= Number(session.expires_by_activity_ms || 0);
+}
+
+function saveSession(session) {
+  authSession = session;
+  localStorage.setItem(sessionKey, JSON.stringify(authSession));
+  scheduleSessionExpiry();
+}
+
+function clearSession() {
+  authSession = null;
+  localStorage.removeItem(sessionKey);
+  if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+  sessionExpiryTimer = null;
+}
+
+function scheduleSessionExpiry() {
+  if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+  if (!authSession?.expires_by_activity_ms) return;
+  const delay = Math.max(0, authSession.expires_by_activity_ms - Date.now());
+  sessionExpiryTimer = setTimeout(() => {
+    clearSession();
+    currentProfile = null;
+    staffProfiles = [];
+    appShell.hidden = true;
+    authScreen.hidden = false;
+    showAuthMessage("Сессия истекла. Войдите заново.");
+  }, delay);
+}
+
+async function refreshAccessToken() {
+  if (!authSession) return null;
+  if (sessionExpired()) {
+    clearSession();
+    return null;
+  }
+  if (!authSession.refresh_token || !authSession.expires_at_ms || Date.now() < authSession.expires_at_ms - 60000) {
+    return authSession;
+  }
+
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: {
+      apikey: supabaseKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ refresh_token: authSession.refresh_token })
+  });
+  if (!response.ok) {
+    clearSession();
+    return null;
+  }
+  const data = await response.json();
+  saveSession(prepareSession(data, authSession));
+  return authSession;
+}
+
+if (authSession && !authSession.expires_by_activity_ms) {
+  authSession = prepareSession(authSession);
+  localStorage.setItem(sessionKey, JSON.stringify(authSession));
 }
 
 const api = {
   async request(path, options = {}) {
+    if (!options.skipAuth && authSession) {
+      await refreshAccessToken();
+    }
     const headers = {
       apikey: supabaseKey,
       "Content-Type": "application/json",
       Prefer: options.prefer || "",
       ...(options.headers || {})
     };
-    if (authSession?.access_token) headers.Authorization = `Bearer ${authSession.access_token}`;
+    if (!options.skipAuth && authSession?.access_token) headers.Authorization = `Bearer ${authSession.access_token}`;
     const response = await fetch(`${supabaseUrl}${path}`, {
       method: options.method || "GET",
       headers,
@@ -57,17 +137,30 @@ const api = {
   },
   auth: {
     async getSession() {
+      if (sessionExpired()) {
+        clearSession();
+        return null;
+      }
+      if (authSession?.refresh_token && authSession?.expires_at_ms && Date.now() >= authSession.expires_at_ms - 60000) {
+        try {
+          await refreshAccessToken();
+        } catch {
+          clearSession();
+          return null;
+        }
+      }
+      scheduleSessionExpiry();
       return authSession;
     },
     async getUser() {
+      await this.getSession();
       if (!authSession?.access_token) return null;
       return api.request("/auth/v1/user");
     },
     async signInWithPassword({ email, password }) {
       const data = await api.request("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password } });
-      authSession = data;
-      localStorage.setItem(sessionKey, JSON.stringify(authSession));
-      return data;
+      saveSession(prepareSession(data));
+      return authSession;
     },
     async signUp({ email, password, fullName }) {
       const data = await api.request(`/auth/v1/signup?redirect_to=${encodeURIComponent(appUrl)}`, {
@@ -75,14 +168,12 @@ const api = {
         body: { email, password, data: { full_name: fullName || "" } }
       });
       if (data?.access_token) {
-        authSession = data;
-        localStorage.setItem(sessionKey, JSON.stringify(authSession));
+        saveSession(prepareSession(data));
       }
       return data;
     },
     async signOut() {
-      authSession = null;
-      localStorage.removeItem(sessionKey);
+      clearSession();
     }
   }
 };
