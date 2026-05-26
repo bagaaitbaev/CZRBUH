@@ -326,6 +326,13 @@ function projectedMonthRevenue(period, currentRevenue) {
   return Math.round((currentRevenue / elapsedDays) * daysInMonth(period));
 }
 
+function elapsedDaysForForecast(period) {
+  const today = new Date();
+  const currentKey = monthKey(today.toISOString().slice(0, 10));
+  if (period !== currentKey) return daysInMonth(period);
+  return Math.max(1, today.getDate());
+}
+
 function filteredOperations() {
   return activeOperations().filter(item => {
     const periodOk = state.period === "all" || monthKey(item.date) === state.period;
@@ -583,7 +590,8 @@ function renderRevenueInsight() {
   const percentNode = document.querySelector("#revenueInsightPercent");
   const amountNode = document.querySelector("#revenueInsightAmount");
   const bar = document.querySelector("#revenueInsightBar");
-  const bonusCurrentNode = document.querySelector("#bonusCurrentAmount");
+  const bonusDailyAverageNode = document.querySelector("#bonusDailyAverage");
+  const bonusForecastRevenueNode = document.querySelector("#bonusForecastRevenue");
   const bonusForecastNode = document.querySelector("#bonusForecastAmount");
   const bonusNextTargetNode = document.querySelector("#bonusNextTarget");
   const bonusHelper = document.querySelector("#bonusHelper");
@@ -601,7 +609,8 @@ function renderRevenueInsight() {
       period,
       currentRevenue: 0,
       projectedRevenue: 0,
-      currentNode: bonusCurrentNode,
+      dailyAverageNode: bonusDailyAverageNode,
+      forecastRevenueNode: bonusForecastRevenueNode,
       forecastNode: bonusForecastNode,
       targetNode: bonusNextTargetNode,
       helperNode: bonusHelper
@@ -629,7 +638,8 @@ function renderRevenueInsight() {
       period,
       currentRevenue,
       projectedRevenue: forecastRevenue,
-      currentNode: bonusCurrentNode,
+      dailyAverageNode: bonusDailyAverageNode,
+      forecastRevenueNode: bonusForecastRevenueNode,
       forecastNode: bonusForecastNode,
       targetNode: bonusNextTargetNode,
       helperNode: bonusHelper
@@ -655,34 +665,48 @@ function renderRevenueInsight() {
     period,
     currentRevenue,
     projectedRevenue: forecastRevenue,
-    currentNode: bonusCurrentNode,
+    dailyAverageNode: bonusDailyAverageNode,
+    forecastRevenueNode: bonusForecastRevenueNode,
     forecastNode: bonusForecastNode,
     targetNode: bonusNextTargetNode,
     helperNode: bonusHelper
   });
 }
 
-function renderBonusInsight({ period, currentRevenue, projectedRevenue, currentNode, forecastNode, targetNode, helperNode }) {
-  const currentBonus = calculateBonus(currentRevenue);
+function renderBonusInsight({ period, currentRevenue, projectedRevenue, dailyAverageNode, forecastRevenueNode, forecastNode, targetNode, helperNode }) {
   const forecastBonus = calculateBonus(projectedRevenue);
-  const next = bonusMilestone(currentRevenue);
+  const next = bonusMilestone(projectedRevenue);
   const isCurrentMonth = period === monthKey(new Date().toISOString().slice(0, 10));
+  const elapsedDays = period === "all" ? 0 : elapsedDaysForForecast(period);
+  const dailyAverage = elapsedDays ? Math.round(currentRevenue / elapsedDays) : 0;
+  const requiredDailyAverage = Math.ceil(bonusBaseRevenue / (period === "all" ? 30 : daysInMonth(period)));
 
-  currentNode.textContent = money(currentBonus);
+  dailyAverageNode.textContent = money(dailyAverage);
+  forecastRevenueNode.textContent = money(projectedRevenue);
   forecastNode.textContent = money(forecastBonus);
   targetNode.textContent = money(next.target);
 
   if (!currentRevenue) {
-    helperNode.textContent = `Сделайте выручку ${money(bonusBaseRevenue + bonusTierSize)}, и бонус составит ${money(calculateBonus(bonusBaseRevenue + bonusTierSize))}.`;
+    targetNode.textContent = money(bonusBaseRevenue);
+    helperNode.textContent = `Бонус пока не прогнозируется. Для базы ${money(bonusBaseRevenue)} нужна средняя выручка примерно ${money(requiredDailyAverage)} в день.`;
+    return;
+  }
+
+  if (!forecastBonus) {
+    const missingToBase = Math.max(0, bonusBaseRevenue - projectedRevenue);
+    targetNode.textContent = money(bonusBaseRevenue);
+    helperNode.textContent = isCurrentMonth
+      ? `Бонус пока не прогнозируется. При текущем темпе прогноз ниже базы на ${money(missingToBase)}. Нужная средняя: ${money(requiredDailyAverage)} в день.`
+      : `По выбранному месяцу бонус не начисляется: выручка ниже базы ${money(bonusBaseRevenue)}.`;
     return;
   }
 
   const forecastText = isCurrentMonth
-    ? `При текущем темпе прогноз выручки: ${money(projectedRevenue)}, прогноз бонуса: ${money(forecastBonus)}.`
-    : `Бонус по выбранному месяцу считается по фактической выручке.`;
+    ? `Если текущий темп сохранится, прогноз бонуса к концу месяца: ${money(forecastBonus)}.`
+    : `По выбранному месяцу расчет идет по фактической выручке.`;
 
-  if (currentRevenue < next.target) {
-    helperNode.textContent = `До следующего уровня осталось ${money(next.remaining)}. На цели ${money(next.target)} бонус будет ${money(next.bonus)} (${Math.round(next.rate * 100)}% с этого блока). ${forecastText}`;
+  if (projectedRevenue < next.target) {
+    helperNode.textContent = `${forecastText} До следующего уровня по прогнозу осталось ${money(next.remaining)} выручки. На уровне ${money(next.target)} бонус будет ${money(next.bonus)}.`;
     return;
   }
 

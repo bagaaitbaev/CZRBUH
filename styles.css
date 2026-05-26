@@ -506,7 +506,7 @@ input:focus {
 .bonus-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -536,6 +536,15 @@ input:focus {
   font-size: 18px;
   line-height: 1.15;
   overflow-wrap: anywhere;
+}
+
+.bonus-grid div:nth-child(3) {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.bonus-grid div:nth-child(3) strong {
+  color: var(--green);
 }
 
 .bonus-helper {
