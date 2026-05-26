@@ -168,6 +168,29 @@ function showAuthMessage(message, error = true) {
   authMessage.style.color = error ? "var(--red)" : "var(--green)";
 }
 
+function authValues() {
+  return {
+    email: authEmail.value.trim(),
+    password: authPassword.value,
+    fullName: authName.value.trim()
+  };
+}
+
+function validateAuthFields({ email, password }) {
+  if (!email) return "Введите email.";
+  if (!password) return "Введите пароль.";
+  if (password.length < 6) return "Пароль должен быть не короче 6 символов.";
+  return "";
+}
+
+function friendlyAuthError(error) {
+  const message = error?.message || "";
+  if (message.includes("anonymous_provider_disabled")) return "Введите email и пароль перед регистрацией.";
+  if (message.includes("Invalid login credentials")) return "Неверный email или пароль.";
+  if (message.includes("User already registered")) return "Такой email уже зарегистрирован. Нажмите «Войти».";
+  return message || "Не удалось выполнить действие.";
+}
+
 function requireAdmin() {
   if (isAdmin()) return true;
   alert("Доступно только админу.");
@@ -1299,29 +1322,41 @@ document.querySelector("#exportExcelBtn").addEventListener("click", () => {
 
 authForm.addEventListener("submit", async event => {
   event.preventDefault();
+  const values = authValues();
+  const validationMessage = validateAuthFields(values);
+  if (validationMessage) {
+    showAuthMessage(validationMessage);
+    return;
+  }
   showAuthMessage("Входим...", false);
   try {
     await api.auth.signInWithPassword({
-      email: authEmail.value.trim(),
-      password: authPassword.value
+      email: values.email,
+      password: values.password
     });
   } catch (error) {
-    showAuthMessage(error.message);
+    showAuthMessage(friendlyAuthError(error));
     return;
   }
   await initApp();
 });
 
 signUpBtn.addEventListener("click", async () => {
+  const values = authValues();
+  const validationMessage = validateAuthFields(values);
+  if (validationMessage) {
+    showAuthMessage(validationMessage);
+    return;
+  }
   showAuthMessage("Создаем аккаунт...", false);
   try {
     await api.auth.signUp({
-      email: authEmail.value.trim(),
-      password: authPassword.value,
-      fullName: authName.value.trim()
+      email: values.email,
+      password: values.password,
+      fullName: values.fullName
     });
   } catch (error) {
-    showAuthMessage(error.message);
+    showAuthMessage(friendlyAuthError(error));
     return;
   }
   showAuthMessage("Аккаунт создан. Если Supabase попросит подтверждение email, подтвердите почту и войдите.", false);
