@@ -1,5 +1,6 @@
 const supabaseUrl = "https://jxjwvdmiaqwpfhuimtog.supabase.co";
 const supabaseKey = "sb_publishable_fgAU_OjRdBG_Kpt4EMYDaQ_6PmkkOUq";
+const appUrl = window.location.origin;
 const sessionKey = "cezar-finance-session";
 let authSession = null;
 
@@ -7,6 +8,18 @@ try {
   authSession = JSON.parse(localStorage.getItem(sessionKey) || "null");
 } catch {
   localStorage.removeItem(sessionKey);
+}
+
+const authParams = new URLSearchParams(window.location.hash.slice(1));
+if (authParams.has("access_token")) {
+  authSession = {
+    access_token: authParams.get("access_token"),
+    refresh_token: authParams.get("refresh_token"),
+    token_type: authParams.get("token_type") || "bearer",
+    expires_in: Number(authParams.get("expires_in") || 0)
+  };
+  localStorage.setItem(sessionKey, JSON.stringify(authSession));
+  history.replaceState(null, "", window.location.pathname + window.location.search);
 }
 
 const api = {
@@ -57,7 +70,7 @@ const api = {
       return data;
     },
     async signUp({ email, password, fullName }) {
-      const data = await api.request("/auth/v1/signup", {
+      const data = await api.request(`/auth/v1/signup?redirect_to=${encodeURIComponent(appUrl)}`, {
         method: "POST",
         body: { email, password, data: { full_name: fullName || "" } }
       });

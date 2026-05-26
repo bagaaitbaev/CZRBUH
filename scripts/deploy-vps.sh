@@ -25,7 +25,7 @@ cat > "$NGINX_SITE" <<'EOF'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name _;
+    server_name 93.170.72.79 _;
 
     add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://jxjwvdmiaqwpfhuimtog.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
     add_header Referrer-Policy "no-referrer" always;

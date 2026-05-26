@@ -38,5 +38,5 @@ http.createServer((request, response) => {
     response.end(data);
   });
 }).listen(port, "127.0.0.1", () => {
-  console.log(`CEZAR finance prototype: http://127.0.0.1:${port}`);
+  console.log(`CEZAR Finance: http://127.0.0.1:${port}`);
 });
