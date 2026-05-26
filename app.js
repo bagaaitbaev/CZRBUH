@@ -99,6 +99,9 @@ let departments = ["Игровые приставки", "Бар", "Кальян"
 const kaspiPayAccount = "Kaspi Pay";
 const kaspiAcquiringRate = 0.0095;
 const kaspiTaxRate = 0.02;
+const bonusBaseRevenue = 3400000;
+const bonusTierSize = 200000;
+const bonusTierRates = [0.05, 0.07, 0.10, 0.12, 0.15];
 
 const seedOperations = [];
 
@@ -281,6 +284,46 @@ function revenueForMonth(key, dayLimit = Infinity) {
   return activeOperations()
     .filter(item => item.type === "income" && monthKey(item.date) === key && new Date(item.date).getDate() <= dayLimit)
     .reduce((total, item) => total + item.amount, 0);
+}
+
+function bonusRateForTier(index) {
+  return bonusTierRates[Math.min(index, bonusTierRates.length - 1)];
+}
+
+function calculateBonus(revenue) {
+  let remaining = Math.max(0, revenue - bonusBaseRevenue);
+  let bonus = 0;
+  let tierIndex = 0;
+
+  while (remaining > 0) {
+    const tierAmount = Math.min(remaining, bonusTierSize);
+    bonus += tierAmount * bonusRateForTier(tierIndex);
+    remaining -= tierAmount;
+    tierIndex += 1;
+  }
+
+  return Math.round(bonus);
+}
+
+function bonusMilestone(revenue) {
+  const current = Math.max(0, revenue);
+  const passedTiers = Math.max(0, Math.floor((current - bonusBaseRevenue) / bonusTierSize) + 1);
+  const targetTier = current < bonusBaseRevenue ? 1 : passedTiers + 1;
+  const target = bonusBaseRevenue + targetTier * bonusTierSize;
+  return {
+    target,
+    remaining: Math.max(0, target - current),
+    bonus: calculateBonus(target),
+    rate: bonusRateForTier(targetTier - 1)
+  };
+}
+
+function projectedMonthRevenue(period, currentRevenue) {
+  const today = new Date();
+  const currentKey = monthKey(today.toISOString().slice(0, 10));
+  if (period !== currentKey) return currentRevenue;
+  const elapsedDays = Math.max(1, today.getDate());
+  return Math.round((currentRevenue / elapsedDays) * daysInMonth(period));
 }
 
 function filteredOperations() {
@@ -540,6 +583,10 @@ function renderRevenueInsight() {
   const percentNode = document.querySelector("#revenueInsightPercent");
   const amountNode = document.querySelector("#revenueInsightAmount");
   const bar = document.querySelector("#revenueInsightBar");
+  const bonusCurrentNode = document.querySelector("#bonusCurrentAmount");
+  const bonusForecastNode = document.querySelector("#bonusForecastAmount");
+  const bonusNextTargetNode = document.querySelector("#bonusNextTarget");
+  const bonusHelper = document.querySelector("#bonusHelper");
   const period = state.period === "all" ? latestPeriod(activeOperations()) : state.period;
 
   insight.classList.remove("ahead", "behind", "neutral");
@@ -550,6 +597,15 @@ function renderRevenueInsight() {
     percentNode.textContent = "0%";
     amountNode.textContent = money(0);
     bar.style.width = "0%";
+    renderBonusInsight({
+      period,
+      currentRevenue: 0,
+      projectedRevenue: 0,
+      currentNode: bonusCurrentNode,
+      forecastNode: bonusForecastNode,
+      targetNode: bonusNextTargetNode,
+      helperNode: bonusHelper
+    });
     return;
   }
 
@@ -558,6 +614,7 @@ function renderRevenueInsight() {
   const isCurrentMonth = period === monthKey(today.toISOString().slice(0, 10));
   const dayLimit = isCurrentMonth ? Math.min(today.getDate(), daysInMonth(previous)) : Infinity;
   const currentRevenue = revenueForMonth(period);
+  const forecastRevenue = projectedMonthRevenue(period, currentRevenue);
   const previousComparable = revenueForMonth(previous, dayLimit);
   const previousTotal = revenueForMonth(previous);
 
@@ -568,6 +625,15 @@ function renderRevenueInsight() {
     percentNode.textContent = "0%";
     amountNode.textContent = money(currentRevenue);
     bar.style.width = currentRevenue ? "100%" : "0%";
+    renderBonusInsight({
+      period,
+      currentRevenue,
+      projectedRevenue: forecastRevenue,
+      currentNode: bonusCurrentNode,
+      forecastNode: bonusForecastNode,
+      targetNode: bonusNextTargetNode,
+      helperNode: bonusHelper
+    });
     return;
   }
 
@@ -585,6 +651,42 @@ function renderRevenueInsight() {
   percentNode.textContent = `${ahead ? "+" : "-"}${Math.abs(percent)}%`;
   amountNode.textContent = `${ahead ? "+" : "-"}${money(Math.abs(diff))}`;
   bar.style.width = `${Math.max(4, Math.min(progress, 100))}%`;
+  renderBonusInsight({
+    period,
+    currentRevenue,
+    projectedRevenue: forecastRevenue,
+    currentNode: bonusCurrentNode,
+    forecastNode: bonusForecastNode,
+    targetNode: bonusNextTargetNode,
+    helperNode: bonusHelper
+  });
+}
+
+function renderBonusInsight({ period, currentRevenue, projectedRevenue, currentNode, forecastNode, targetNode, helperNode }) {
+  const currentBonus = calculateBonus(currentRevenue);
+  const forecastBonus = calculateBonus(projectedRevenue);
+  const next = bonusMilestone(currentRevenue);
+  const isCurrentMonth = period === monthKey(new Date().toISOString().slice(0, 10));
+
+  currentNode.textContent = money(currentBonus);
+  forecastNode.textContent = money(forecastBonus);
+  targetNode.textContent = money(next.target);
+
+  if (!currentRevenue) {
+    helperNode.textContent = `Сделайте выручку ${money(bonusBaseRevenue + bonusTierSize)}, и бонус составит ${money(calculateBonus(bonusBaseRevenue + bonusTierSize))}.`;
+    return;
+  }
+
+  const forecastText = isCurrentMonth
+    ? `При текущем темпе прогноз выручки: ${money(projectedRevenue)}, прогноз бонуса: ${money(forecastBonus)}.`
+    : `Бонус по выбранному месяцу считается по фактической выручке.`;
+
+  if (currentRevenue < next.target) {
+    helperNode.textContent = `До следующего уровня осталось ${money(next.remaining)}. На цели ${money(next.target)} бонус будет ${money(next.bonus)} (${Math.round(next.rate * 100)}% с этого блока). ${forecastText}`;
+    return;
+  }
+
+  helperNode.textContent = forecastText;
 }
 
 function renderCharts() {
