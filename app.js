@@ -19,7 +19,10 @@ const api = {
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || response.statusText);
+      const error = new Error(text || response.statusText);
+      error.status = response.status;
+      error.body = text;
+      throw error;
     }
     if (response.status === 204) return null;
     const text = await response.text();
@@ -199,7 +202,17 @@ function friendlyAuthError(error) {
   if (message.includes("anonymous_provider_disabled")) return "Введите email и пароль перед регистрацией.";
   if (message.includes("Invalid login credentials")) return "Неверный email или пароль.";
   if (message.includes("User already registered")) return "Такой email уже зарегистрирован. Нажмите «Войти».";
+  if (isAuthSessionError(error)) return "Сессия истекла. Войдите заново.";
   return message || "Не удалось выполнить действие.";
+}
+
+function isAuthSessionError(error) {
+  const message = `${error?.message || ""} ${error?.body || ""}`;
+  return error?.status === 401
+    || message.includes("bad_jwt")
+    || message.includes("invalid JWT")
+    || message.includes("token is expired")
+    || message.includes("JWT");
 }
 
 function requireAdmin() {
@@ -1464,7 +1477,14 @@ async function initApp() {
     render();
     showAuthMessage("");
   } catch (error) {
-    showAuthMessage(error.message || "Не удалось загрузить данные");
+    if (isAuthSessionError(error)) {
+      await api.auth.signOut();
+      currentProfile = null;
+      staffProfiles = [];
+      showAuthMessage("Сессия истекла. Войдите заново.");
+    } else {
+      showAuthMessage(friendlyAuthError(error) || "Не удалось загрузить данные");
+    }
     appShell.hidden = true;
     authScreen.hidden = false;
   }
