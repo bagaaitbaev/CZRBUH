@@ -181,12 +181,12 @@ const api = {
 let currentProfile = null;
 let staffProfiles = [];
 
-let incomeCategories = {
+const defaultIncomeCategories = {
   "Продажи": ["Услуги и товары", "Прочие"],
   "Финансовые": ["Возврат", "Прочие доходы"]
 };
 
-let expenseCategories = {
+const defaultExpenseCategories = {
   "1. Переменные": ["Закуп товаров", "Зарплата"],
   "2. Постоянные": ["Зарплата", "Питание сотрудников", "Связь и интернет", "Программное обеспечение", "Профессиональные услуги", "Аренда помещения", "Комунальные услуги"],
   "3. Коммерческие": ["Реклама", "Зарплата"],
@@ -195,7 +195,7 @@ let expenseCategories = {
   "Дивиденды": ["Дивиденды"]
 };
 
-let startingAccounts = [
+const defaultStartingAccounts = [
   { name: "Kaspi Pay", balance: 0 },
   { name: "Kaspi Gold", balance: 0 },
   { name: "Наличные А", balance: 0 },
@@ -205,7 +205,16 @@ let startingAccounts = [
   { name: "Доп", balance: 0 }
 ];
 
-let departments = ["Игровые приставки", "Бар", "Кальян", "Общие"];
+const defaultDepartments = ["Игровые приставки", "Бар", "Кальян", "Общие"];
+
+function cloneCategoryMap(categories) {
+  return Object.fromEntries(Object.entries(categories).map(([name, values]) => [name, [...values]]));
+}
+
+let incomeCategories = cloneCategoryMap(defaultIncomeCategories);
+let expenseCategories = cloneCategoryMap(defaultExpenseCategories);
+let startingAccounts = defaultStartingAccounts.map(account => ({ ...account }));
+let departments = [...defaultDepartments];
 const kaspiPayAccount = "Kaspi Pay";
 const kaspiAcquiringRate = 0.0095;
 const kaspiTaxRate = 0.02;
@@ -578,11 +587,17 @@ async function loadAppData() {
     return { ...item, subcategories: subcategoriesByCategory[item.id] || [] };
   });
 
-  departments = departmentsData.map(item => item.name);
-  startingAccounts = accountsData.map(item => ({ id: item.id, name: item.name, balance: Number(item.opening_balance) }));
+  departments = departmentsData.length ? departmentsData.map(item => item.name) : [...defaultDepartments];
+  startingAccounts = accountsData.length
+    ? accountsData.map(item => ({ id: item.id, name: item.name, balance: Number(item.opening_balance) }))
+    : defaultStartingAccounts.map(account => ({ ...account }));
   const categories = categoriesWithChildren || [];
-  incomeCategories = categoryObject(categories.filter(item => item.kind === "income"));
-  expenseCategories = categoryObject(categories.filter(item => item.kind === "expense"));
+  incomeCategories = categories.some(item => item.kind === "income")
+    ? categoryObject(categories.filter(item => item.kind === "income"))
+    : cloneCategoryMap(defaultIncomeCategories);
+  expenseCategories = categories.some(item => item.kind === "expense")
+    ? categoryObject(categories.filter(item => item.kind === "expense"))
+    : cloneCategoryMap(defaultExpenseCategories);
   state.operations = normalizeOperations((operationsData || []).map(mapOperation));
   staffProfiles = staffData || [];
   const latest = latestPeriod(activeOperations());
